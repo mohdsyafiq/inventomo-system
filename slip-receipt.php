@@ -126,9 +126,8 @@
     alt="Inventomo Logo"
   >
 </div>
-<p class="center" style="font-size: 0.7rem;">Receipt ID: #NV-2025-00123</p>
-
-    <p id="datetime"></p>
+    <p class="center" style="font-size: 0.7rem;">Receipt ID: #NV-2025-00123</p>
+    <p id="datetime" style="font-size: 0.7rem;"></p>
     <hr style="border: none; border-top: 1px solid #ccc; margin: 10px 0;">
     <div class="section row">
       <div>
