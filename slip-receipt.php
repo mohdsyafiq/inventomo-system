@@ -119,8 +119,15 @@
 <div class="header-row">
   
   <div class="a6-paper" id="receipt">
-  <h2><center>Inventomo</center></h2>
-    <p class="center">Receipt ID: #NV-2025-00123</p>
+  <div style="text-align: center;">
+  <img
+    src="assets/img/icons/brands/inventomo-slip.png"
+    width="130"
+    alt="Inventomo Logo"
+  >
+</div>
+<p class="center" style="font-size: 0.7rem;">Receipt ID: #NV-2025-00123</p>
+
     <p id="datetime"></p>
     <hr style="border: none; border-top: 1px solid #ccc; margin: 10px 0;">
     <div class="section row">
