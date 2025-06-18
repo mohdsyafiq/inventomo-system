@@ -62,7 +62,7 @@ try {
 $profile_link = "#";
 $current_user_name = "User";
 $current_user_role = "User";
-$current_user_avatar = "1.png";
+$current_user_avatar = "uploads/photos/default.jpg";
 
 if (isset($_SESSION['user_id']) && $conn) {
     $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
@@ -77,7 +77,13 @@ if (isset($_SESSION['user_id']) && $conn) {
         // Set user information
         $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
         $current_user_role = $user_data['position'];
-        $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
+        
+        // Handle profile picture path
+        if (!empty($user_data['profile_picture']) && $user_data['profile_picture'] != 'default.jpg') {
+            $current_user_avatar = 'uploads/photos/' . $user_data['profile_picture'];
+        } else {
+            $current_user_avatar = 'assets/img/avatars/1.png'; // fallback to default
+        }
         
         // All users go to user-profile.php with their ID
         $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
@@ -93,9 +99,25 @@ function getAvatarColor($position) {
             return 'danger';
         case 'moderator':
             return 'warning';
-        default:
+        case 'manager':
+            return 'success';
+        case 'staff':
             return 'info';
+        default:
+            return 'secondary';
     }
+}
+
+// Helper function to get profile picture path
+function getProfilePicture($profile_picture, $full_name) {
+    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
+        $photo_path = 'uploads/photos/' . $profile_picture;
+        if (file_exists($photo_path)) {
+            return $photo_path;
+        }
+    }
+    // Return null to show initials instead
+    return null;
 }
 
 ?>
@@ -182,20 +204,49 @@ function getAvatarColor($position) {
     }
 
     .user-avatar {
-        width: 32px;
-        height: 32px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
         overflow: hidden;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background-color: #f0f2f5;
-        margin-right: 0.5rem;
+        margin-right: 0.75rem;
+        font-weight: 600;
+        font-size: 14px;
+        color: white;
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
 
     .user-info {
         display: flex;
         align-items: center;
+    }
+
+    .user-details {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .user-name {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 2px;
+        color: #333;
+    }
+
+    .user-role {
+        font-size: 12px;
+        color: #666;
+        text-transform: capitalize;
     }
 
     .page-title {
@@ -223,6 +274,29 @@ function getAvatarColor($position) {
 
     .alert-dismissible .btn-close {
         padding: 1rem;
+    }
+
+    /* Navbar user avatar styling */
+    .navbar .user-avatar {
+        width: 32px;
+        height: 32px;
+        margin-right: 0;
+    }
+
+    .dropdown-menu .user-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 0.75rem;
+    }
+
+    .dropdown-item .d-flex {
+        align-items: center;
+    }
+
+    .dropdown-item .flex-grow-1 {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     </style>
 
@@ -356,38 +430,33 @@ function getAvatarColor($position) {
                             <i class="bx bx-menu bx-sm"></i>
                         </a>
                     </div>
-
+                        <!-- gambar -->
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-                        <!-- Search -->
-                        <div class="navbar-nav align-items-center">
-                            <div class="nav-item d-flex align-items-center">
-                                <i class="bx bx-search fs-4 lh-0"></i>
-                                <input type="text" class="form-control border-0 shadow-none" id="navbar-search"
-                                    placeholder="Search..." aria-label="Search..." />
-                            </div>
-                        </div>
-                        <!-- /Search -->
-
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
-
                             <!-- User -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
-                                    <div class="avatar avatar-online">
-                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                            alt class="w-px-40 h-auto rounded-circle" />
+                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                        <?php
+                                        $navbar_pic = getProfilePicture($_SESSION['profile_picture'] ?? '', $current_user_name);
+                                        if ($navbar_pic): ?>
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <?php else: ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="flex-shrink-0 me-3">
-                                                    <div class="avatar avatar-online">
-                                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                                            alt class="w-px-40 h-auto rounded-circle" />
-                                                    </div>
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <?php if ($navbar_pic): ?>
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <?php else: ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
                                                     <span class="fw-semibold d-block">
@@ -420,6 +489,7 @@ function getAvatarColor($position) {
                                     </li>
                                 </ul>
                             </li>
+                            <!-- gambar -->
                             <!--/ User -->
                         </ul>
                     </div>
@@ -499,29 +569,26 @@ function getAvatarColor($position) {
                                                 $position = $r2['position'];
                                                 $date_join = date('M d, Y', strtotime($r2['date_join']));
                                                 $full_name = isset($r2['full_name']) ? $r2['full_name'] : $username;
-                                                // Default status (you can adjust this based on your database structure)
                                                 $status = isset($r2['active']) ? $r2['active'] : '1';
+                                                $profile_picture = isset($r2['profile_picture']) ? $r2['profile_picture'] : '';
                                                 
-                                                // Profile picture or default
-                                                $profile_pic = isset($r2['profile_picture']) && !empty($r2['profile_picture']) ? 
-                                                    'uploads/' . $r2['profile_picture'] : 'assets/img/avatars/default.png';
+                                                // Get profile picture path
+                                                $profile_pic_path = getProfilePicture($profile_picture, $full_name);
                                         ?>
                                         <tr>
                                             <td><?php echo $next++; ?></td>
                                             <td>
                                                 <div class="user-info">
-                                                    <div
-                                                        class="user-avatar bg-label-<?php echo getAvatarColor($position); ?>">
-                                                        <?php if ($profile_pic === 'assets/img/avatars/default.png'): ?>
-                                                        <span
-                                                            class="avatar-initial"><?php echo strtoupper(substr($full_name, 0, 1)); ?></span>
+                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($position); ?>">
+                                                        <?php if ($profile_pic_path): ?>
+                                                            <img src="<?php echo htmlspecialchars($profile_pic_path); ?>" alt="Profile Picture">
                                                         <?php else: ?>
-                                                        <img src="<?php echo $profile_pic; ?>" alt="Profile Picture">
+                                                            <?php echo strtoupper(substr($full_name, 0, 1)); ?>
                                                         <?php endif; ?>
                                                     </div>
-                                                    <div>
-                                                        <h6 class="mb-0"><?php echo $full_name; ?></h6>
-                                                        <small class="text-muted">@<?php echo $username; ?></small>
+                                                    <div class="user-details">
+                                                        <div class="user-name"><?php echo htmlspecialchars($full_name); ?></div>
+                                                        <div class="user-role"><?php echo htmlspecialchars($position); ?></div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -598,7 +665,7 @@ function getAvatarColor($position) {
                                         </li>
                                         <li class="page-item">
                                             <a class="page-link" href="javascript:void(0);">3</a>
-                                        </li>
+                        </li>
                                         <li class="page-item next">
                                             <a class="page-link" href="javascript:void(0);"><i
                                                     class="tf-icon bx bx-chevrons-right"></i></a>
