@@ -24,10 +24,49 @@ $current_user_name = "User";
 $current_user_role = "User";
 $current_user_avatar = "1.png";
 
+// Initialize count variables
+$total_all = 0;
+$total_staff = 0;
+$total_admin = 0;
+$total_manager = 0;
+$new_staff = [];
+$recent_activity = [];
+$low_stock_items = [];
+
+// Helper function to get avatar background color based on position
+function getAvatarColor($position) {
+    switch (strtolower($position)) {
+        case 'admin':
+            return 'primary';
+        case 'super-admin':
+            return 'danger';
+        case 'moderator':
+            return 'warning';
+        case 'manager':
+            return 'success';
+        case 'staff':
+            return 'info';
+        default:
+            return 'secondary';
+    }
+}
+
+// Helper function to get profile picture path
+function getProfilePicture($profile_picture, $full_name) {
+    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
+        $photo_path = 'uploads/photos/' . $profile_picture;
+        if (file_exists($photo_path)) {
+            return $photo_path;
+        }
+    }
+    // Return null to show initials instead
+    return null;
+}
+
 // Try to establish database connection with error handling
 try {
     $conn = mysqli_connect($host, $user, $pass, $dbname);
-    
+
     if (!$conn) {
         throw new Exception("Connection failed: " . mysqli_connect_error());
     }
@@ -35,22 +74,134 @@ try {
     // Session check and user profile link logic
     if (isset($_SESSION['user_id']) && $conn) {
         $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
-        
+
         // Fetch current user details from database
         $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
         $user_result = mysqli_query($conn, $user_query);
-        
+
         if ($user_result && mysqli_num_rows($user_result) > 0) {
             $user_data = mysqli_fetch_assoc($user_result);
-            
+
             // Set user information
             $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
             $current_user_role = $user_data['position'];
             $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
-            
+
             // Profile link goes to user-profile.php with their ID
             $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
         }
+    }
+
+    // Get user counts by position
+    if ($conn) {
+        // Total All Users
+        $total_query = "SELECT COUNT(*) as total FROM user_profiles";
+        $total_result = mysqli_query($conn, $total_query);
+        if ($total_result) {
+            $total_row = mysqli_fetch_assoc($total_result);
+            $total_all = $total_row['total'];
+        }
+
+        // Total Staff
+        $staff_query = "SELECT COUNT(*) as total FROM user_profiles WHERE LOWER(position) = 'staff'";
+        $staff_result = mysqli_query($conn, $staff_query);
+        if ($staff_result) {
+            $staff_row = mysqli_fetch_assoc($staff_result);
+            $total_staff = $staff_row['total'];
+        }
+
+        // Total Admin
+        $admin_query = "SELECT COUNT(*) as total FROM user_profiles WHERE LOWER(position) = 'admin'";
+        $admin_result = mysqli_query($conn, $admin_query);
+        if ($admin_result) {
+            $admin_row = mysqli_fetch_assoc($admin_result);
+            $total_admin = $admin_row['total'];
+        }
+
+        // Total Manager
+        $manager_query = "SELECT COUNT(*) as total FROM user_profiles WHERE LOWER(position) = 'manager'";
+        $manager_result = mysqli_query($conn, $manager_query);
+        if ($manager_result) {
+            $manager_row = mysqli_fetch_assoc($manager_result);
+            $total_manager = $manager_row['total'];
+        }
+
+        // Get new staff (recently joined - last 30 days)
+        $new_staff_query = "SELECT Id, full_name, position, date_join, profile_picture 
+                           FROM user_profiles 
+                           WHERE date_join >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) 
+                           ORDER BY date_join DESC 
+                           LIMIT 10";
+        $new_staff_result = mysqli_query($conn, $new_staff_query);
+        if ($new_staff_result) {
+            while ($row = mysqli_fetch_assoc($new_staff_result)) {
+                $new_staff[] = $row;
+            }
+        }
+
+        // Fetch Recent Inventory Activity
+        $limit = 5;
+        $sql_recent_activity = "
+            (SELECT
+                product_name,
+                'Stock In' AS activity_type,
+                quantity_added AS quantity,
+                transaction_date
+            FROM
+                stock_in_historys)
+
+            UNION ALL
+
+            (SELECT
+                product_name,
+                'Stock Out' AS activity_type,
+                quantity_deducted AS quantity,
+                transaction_date
+            FROM
+                stock_out_history)
+
+            ORDER BY
+                transaction_date DESC
+            LIMIT ?
+        ";
+
+        if ($stmt = $conn->prepare($sql_recent_activity)) {
+            $stmt->bind_param("i", $limit);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            while ($row = $result->fetch_assoc()) {
+                $recent_activity[] = $row;
+            }
+            $stmt->close();
+        }
+
+        // Generate chart data based on recent activity
+        $chart_data = [];
+        $product_totals = [];
+        
+        // Process recent activity for chart
+        foreach ($recent_activity as $activity) {
+            $product = $activity['product_name'];
+            $quantity = (int)$activity['quantity'];
+            
+            if (!isset($product_totals[$product])) {
+                $product_totals[$product] = 0;
+            }
+            
+            if ($activity['activity_type'] == 'Stock In') {
+                $product_totals[$product] += $quantity;
+            } else {
+                $product_totals[$product] -= $quantity;
+            }
+        }
+        
+        // Get top 5 products for chart
+        arsort($product_totals);
+        $chart_data = array_slice($product_totals, 0, 5, true);
+        
+        // Calculate max value for chart scaling
+        $max_value = !empty($chart_data) ? max(array_map('abs', $chart_data)) : 100;
     }
 
 } catch (Exception $e) {
@@ -59,7 +210,6 @@ try {
 ?>
 
 <!DOCTYPE html>
-
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/"
     data-template="vertical-menu-template-free">
 
@@ -82,7 +232,7 @@ try {
         href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
         rel="stylesheet" />
 
-    <!-- Icons. Uncomment required icon fonts -->
+    <!-- Icons -->
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
 
     <!-- Core CSS -->
@@ -93,8 +243,6 @@ try {
     <!-- Vendors CSS -->
     <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
     <link rel="stylesheet" href="assets/vendor/libs/apex-charts/apex-charts.css" />
-
-    <!-- Page CSS -->
 
     <!-- Helpers -->
     <script src="assets/vendor/js/helpers.js"></script>
@@ -118,6 +266,7 @@ try {
     .chart-title {
         margin-bottom: 15px;
         font-size: 18px;
+        font-weight: 600;
     }
 
     .stock-chart {
@@ -134,9 +283,9 @@ try {
         width: 40px;
         background-color: #f0f0f0;
         border: 1px solid #ccc;
+        border-radius: 4px 4px 0 0;
     }
 
-    /* Table Styling */
     .inventory-table {
         width: 100%;
         border-collapse: collapse;
@@ -145,32 +294,141 @@ try {
     .inventory-table th {
         border-bottom: 2px solid #000;
         text-align: left;
-        padding: 8px;
+        padding: 10px;
+        font-size: 14px;
+        font-weight: 600;
     }
 
     .inventory-table td {
         border-bottom: 1px solid #ccc;
-        padding: 8px;
+        padding: 10px;
+        font-size: 14px;
     }
 
-    /* Alerts List */
+    .new-staff-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .new-staff-table th {
+        border-bottom: 2px solid #000;
+        text-align: left;
+        padding: 10px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .new-staff-table td {
+        border-bottom: 1px solid #ccc;
+        padding: 10px;
+        font-size: 14px;
+    }
+
     .alert-list {
-        list-style-type: disc;
-        padding-left: 20px;
+        list-style-type: none;
+        padding-left: 0;
         margin-top: 10px;
     }
 
     .alert-list li {
         margin-bottom: 10px;
         border-bottom: 1px solid #eee;
-        padding-bottom: 5px;
+        padding-bottom: 8px;
+        padding: 8px;
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+        border-radius: 4px;
     }
 
-    /* Responsive Design */
     @media (max-width: 768px) {
         .charts-container {
             grid-template-columns: 1fr;
         }
+    }
+
+    .user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-weight: 600;
+        font-size: 12px;
+        color: white;
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .user-details {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .user-name {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 2px;
+        color: #333;
+    }
+
+    .user-role {
+        font-size: 12px;
+        color: #666;
+        text-transform: capitalize;
+    }
+
+    /* Staff table specific styling */
+    .staff-info {
+        display: flex;
+        align-items: center;
+    }
+
+    .staff-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-weight: 600;
+        font-size: 11px;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .staff-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* Navbar dropdown avatar styling */
+    .dropdown-menu .user-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 0.75rem;
+    }
+
+    .dropdown-item .d-flex {
+        align-items: center;
+    }
+
+    .dropdown-item .flex-grow-1 {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     </style>
 </head>
@@ -209,82 +467,43 @@ try {
                         <span class="menu-header-text">Pages</span>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-dock-top"></i>
-                            <div data-i18n="stock">Stock</div>
+                        <a href="inventory.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <div data-i18n="Analytics">Inventory</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="inventory.php" class="menu-link">
-                                    <div data-i18n="inventory">Inventory</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="order-item.php" class="menu-link">
-                                    <div data-i18n="order_item">Order Item</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-notepad"></i>
-                            <div data-i18n="sales">Sales</div>
+                        <a href="stock-management.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-list-plus"></i>
+                            <div data-i18n="Analytics">Stock Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="booking-item.php" class="menu-link">
-                                    <div data-i18n="booking_item">Booking Item</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
-                            <div data-i18n="invoice">Invoice</div>
-                        </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="receipt.php" class="menu-link">
-                                    <div data-i18n="receipt">Receipt</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="report.php" class="menu-link">
-                                    <div data-i18n="receipt">Report</div>
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                        <a href="customer-supplier.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bxs-user-detail"></i>
-                            <div data-i18n="sales">Customer & Supplier</div>
+                            <div data-i18n="Analytics">Supplier & Customer</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="customer-supplier.php" class="menu-link">
-                                    <div data-i18n="booking_item">Customer & Supplier Management</div>
-                                </a>
-                            </li>
-                        </ul>
+                    </li>
+                    <li class="menu-item">
+                        <a href="order-billing.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <div data-i18n="Analytics">Order & Billing</div>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="report.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bxs-report"></i>
+                            <div data-i18n="Analytics">Report</div>
+                        </a>
                     </li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Account</span></li>
 
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                        <a href="user.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-user"></i>
-                            <div data-i18n="admin">Admin</div>
+                            <div data-i18n="Analytics">User Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="user.php" class="menu-link">
-                                    <div data-i18n="user">User</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                 </ul>
             </aside>
@@ -302,35 +521,31 @@ try {
                     </div>
 
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-                        <!-- Search -->
-                        <div class="navbar-nav align-items-center">
-                            <div class="nav-item d-flex align-items-center">
-                                <i class="bx bx-search fs-4 lh-0"></i>
-                                <input type="text" class="form-control border-0 shadow-none" placeholder="Search..."
-                                    aria-label="Search..." />
-                            </div>
-                        </div>
-                        <!-- /Search -->
-
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
                             <!-- User -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
-                                    <div class="avatar avatar-online">
-                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                            alt class="w-px-40 h-auto rounded-circle" />
+                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                        <?php
+                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
+                                        if ($navbar_pic): ?>
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <?php else: ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="flex-shrink-0 me-3">
-                                                    <div class="avatar avatar-online">
-                                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                                            alt class="w-px-40 h-auto rounded-circle" />
-                                                    </div>
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <?php if ($navbar_pic): ?>
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <?php else: ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
                                                     <span class="fw-semibold d-block">
@@ -388,76 +603,67 @@ try {
 
                         <!-- Cards row with proper spacing -->
                         <div class="row mb-4">
-                            <!-- Card Border Shadow -->
+                            <!-- Total All Users Card -->
                             <div class="col-lg-3 col-sm-6 mb-4">
                                 <div class="card card-border-shadow-primary h-100">
                                     <div class="card-body">
                                         <div class="d-flex align-items-center mb-2">
                                             <div class="avatar me-4">
                                                 <span class="avatar-initial rounded bg-label-primary"><i
-                                                        class="bx bx-package bx-sm"></i></span>
+                                                        class="bx bx-user bx-sm"></i></span>
                                             </div>
-                                            <h4 class="mb-0">1,248</h4>
+                                            <h4 class="mb-0">Total All</h4>
                                         </div>
-                                        <p class="mb-2">Total Products</p>
-                                        <p class="mb-0">
-                                            <span class="text-heading fw-medium me-2">+12.5%</span>
-                                            <span class="text-body-secondary">than last month</span>
-                                        </p>
+                                        <h2 class="mb-2"><?php echo $total_all; ?></h2>
+                                        <p class="mb-2">Total Users</p>
                                     </div>
                                 </div>
                             </div>
+                            <!-- Total Staff Card -->
                             <div class="col-lg-3 col-sm-6 mb-4">
                                 <div class="card card-border-shadow-warning h-100">
                                     <div class="card-body">
                                         <div class="d-flex align-items-center mb-2">
                                             <div class="avatar me-4">
                                                 <span class="avatar-initial rounded bg-label-warning"><i
-                                                        class="bx bx-error bx-sm"></i></span>
+                                                        class="bx bx-user bx-sm"></i></span>
                                             </div>
-                                            <h4 class="mb-0">23</h4>
+                                            <h4 class="mb-0">Total Staff</h4>
                                         </div>
-                                        <p class="mb-2">Low Stock Items</p>
-                                        <p class="mb-0">
-                                            <span class="text-heading fw-medium me-2">-5.2%</span>
-                                            <span class="text-body-secondary">than last week</span>
-                                        </p>
+                                        <h2 class="mb-2"><?php echo $total_staff; ?></h2>
+                                        <p class="mb-2">Staff Members</p>
                                     </div>
                                 </div>
                             </div>
+                            <!-- Total Admin Card -->
                             <div class="col-lg-3 col-sm-6 mb-4">
                                 <div class="card card-border-shadow-success h-100">
                                     <div class="card-body">
                                         <div class="d-flex align-items-center mb-2">
                                             <div class="avatar me-4">
                                                 <span class="avatar-initial rounded bg-label-success"><i
-                                                        class="bx bx-shopping-bag bx-sm"></i></span>
+                                                        class="bx bx-user-check bx-sm"></i></span>
                                             </div>
-                                            <h4 class="mb-0">156</h4>
+                                            <h4 class="mb-0">Total Admin</h4>
                                         </div>
-                                        <p class="mb-2">Orders Today</p>
-                                        <p class="mb-0">
-                                            <span class="text-heading fw-medium me-2">+8.3%</span>
-                                            <span class="text-body-secondary">than yesterday</span>
-                                        </p>
+                                        <h2 class="mb-2"><?php echo $total_admin; ?></h2>
+                                        <p class="mb-2">Admin Users</p>
                                     </div>
                                 </div>
                             </div>
+                            <!-- Total Manager Card -->
                             <div class="col-lg-3 col-sm-6 mb-4">
                                 <div class="card card-border-shadow-info h-100">
                                     <div class="card-body">
                                         <div class="d-flex align-items-center mb-2">
                                             <div class="avatar me-4">
                                                 <span class="avatar-initial rounded bg-label-info"><i
-                                                        class="bx bx-dollar bx-sm"></i></span>
+                                                        class="bx bx-crown bx-sm"></i></span>
                                             </div>
-                                            <h4 class="mb-0">$12,847</h4>
+                                            <h4 class="mb-0">Total Manager</h4>
                                         </div>
-                                        <p class="mb-2">Revenue Today</p>
-                                        <p class="mb-0">
-                                            <span class="text-heading fw-medium me-2">+15.7%</span>
-                                            <span class="text-body-secondary">than yesterday</span>
-                                        </p>
+                                        <h2 class="mb-2"><?php echo $total_manager; ?></h2>
+                                        <p class="mb-2">Managers</p>
                                     </div>
                                 </div>
                             </div>
@@ -468,79 +674,174 @@ try {
                             <div class="charts-container">
                                 <!-- Stock Overview Chart -->
                                 <div class="chart-card">
-                                    <div class="chart-title">Stock Overview</div>
+                                    <div class="chart-title">Stock Overview - Recent Activity</div>
                                     <div class="stock-chart">
-                                        <div class="chart-bar" style="height: 40%; background-color: #696cff;"></div>
-                                        <div class="chart-bar" style="height: 60%; background-color: #8592a3;"></div>
-                                        <div class="chart-bar" style="height: 75%; background-color: #71dd37;"></div>
-                                        <div class="chart-bar" style="height: 100%; background-color: #ffab00;"></div>
-                                        <div class="chart-bar" style="height: 65%; background-color: #ff3e1d;"></div>
+                                        <?php if (!empty($chart_data)): ?>
+                                            <?php 
+                                            $colors = ['#696cff', '#8592a3', '#71dd37', '#ffab00', '#ff3e1d'];
+                                            $color_index = 0;
+                                            foreach ($chart_data as $product => $total): 
+                                                $height = $max_value > 0 ? abs($total) / $max_value * 100 : 10;
+                                                $height = max($height, 10); // Minimum height for visibility
+                                                $color = $colors[$color_index % count($colors)];
+                                            ?>
+                                                <div class="chart-bar" 
+                                                     style="height: <?php echo $height; ?>%; background-color: <?php echo $color; ?>;"
+                                                     title="<?php echo htmlspecialchars($product) . ': ' . $total; ?>">
+                                                </div>
+                                            <?php 
+                                                $color_index++;
+                                            endforeach; ?>
+                                        <?php else: ?>
+                                            <!-- Default bars when no data -->
+                                            <div class="chart-bar" style="height: 30%; background-color: #e9ecef;" title="No data"></div>
+                                            <div class="chart-bar" style="height: 20%; background-color: #e9ecef;" title="No data"></div>
+                                            <div class="chart-bar" style="height: 15%; background-color: #e9ecef;" title="No data"></div>
+                                            <div class="chart-bar" style="height: 10%; background-color: #e9ecef;" title="No data"></div>
+                                            <div class="chart-bar" style="height: 25%; background-color: #e9ecef;" title="No data"></div>
+                                        <?php endif; ?>
                                     </div>
                                     <div class="d-flex justify-content-around mt-3">
-                                        <small>Jan</small>
-                                        <small>Feb</small>
-                                        <small>Mar</small>
-                                        <small>Apr</small>
-                                        <small>May</small>
+                                        <?php if (!empty($chart_data)): ?>
+                                            <?php foreach ($chart_data as $product => $total): ?>
+                                                <small title="<?php echo htmlspecialchars($product) . ': ' . $total; ?>">
+                                                    <?php echo htmlspecialchars(substr($product, 0, 8)); ?><?php echo strlen($product) > 8 ? '...' : ''; ?>
+                                                </small>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <small>Product 1</small>
+                                            <small>Product 2</small>
+                                            <small>Product 3</small>
+                                            <small>Product 4</small>
+                                            <small>Product 5</small>
+                                        <?php endif; ?>
                                     </div>
+                                    <?php if (!empty($chart_data)): ?>
+                                        <div class="mt-2 text-center">
+                                            <small class="text-muted">Net stock movement from recent activity</small>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
 
                                 <!-- Recent Activity Table -->
-                                <div class="chart-card">
-                                    <div class="chart-title">Recent Inventory Activity</div>
-                                    <table class="inventory-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Item</th>
-                                                <th>Activity</th>
-                                                <th>Quantity</th>
-                                                <th>Date</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td>Laptop Dell XPS</td>
-                                                <td><span class="badge bg-success">Stock In</span></td>
-                                                <td>+15</td>
-                                                <td>Today</td>
-                                            </tr>
-                                            <tr>
-                                                <td>iPhone 14 Pro</td>
-                                                <td><span class="badge bg-danger">Stock Out</span></td>
-                                                <td>-8</td>
-                                                <td>Today</td>
-                                            </tr>
-                                            <tr>
-                                                <td>Samsung Monitor</td>
-                                                <td><span class="badge bg-success">Stock In</span></td>
-                                                <td>+20</td>
-                                                <td>Yesterday</td>
-                                            </tr>
-                                            <tr>
-                                                <td>Wireless Mouse</td>
-                                                <td><span class="badge bg-danger">Stock Out</span></td>
-                                                <td>-12</td>
-                                                <td>Yesterday</td>
-                                            </tr>
-                                            <tr>
-                                                <td>USB Drive 64GB</td>
-                                                <td><span class="badge bg-success">Stock In</span></td>
-                                                <td>+50</td>
-                                                <td>2 days ago</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                <div class="card chart-card">
+                                    <div class="card-header chart-title">Recent Inventory Activity</div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table inventory-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Item</th>
+                                                        <th>Activity</th>
+                                                        <th>Quantity</th>
+                                                        <th>Date</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php if (!empty($recent_activity)): ?>
+                                                        <?php
+                                                        $today_date = date('Y-m-d');
+                                                        $yesterday_date = date('Y-m-d', strtotime('-1 day'));
+                                                        ?>
+                                                        <?php foreach ($recent_activity as $activity): ?>
+                                                            <tr>
+                                                                <td><?php echo htmlspecialchars($activity['product_name']); ?></td>
+                                                                <td>
+                                                                    <?php
+                                                                    $badge_class = '';
+                                                                    $quantity_prefix = '';
+                                                                    if ($activity['activity_type'] == 'Stock In') {
+                                                                        $badge_class = 'bg-label-success';
+                                                                        $quantity_prefix = '+';
+                                                                    } else {
+                                                                        $badge_class = 'bg-label-danger';
+                                                                        $quantity_prefix = '-';
+                                                                    }
+                                                                    ?>
+                                                                    <span class="badge <?php echo $badge_class; ?>"><?php echo htmlspecialchars($activity['activity_type']); ?></span>
+                                                                </td>
+                                                                <td><?php echo $quantity_prefix . htmlspecialchars($activity['quantity']); ?></td>
+                                                                <td>
+                                                                    <?php
+                                                                    echo date('d/M/Y', strtotime($activity['transaction_date']));
+                                                                    ?>
+                                                                </td>
+                                                            </tr>
+                                                        <?php endforeach; ?>
+                                                    <?php else: ?>
+                                                        <tr>
+                                                            <td colspan="4" class="text-center text-muted">No recent activity found.</td>
+                                                        </tr>
+                                                    <?php endif; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <!-- Low Stock Alerts -->
+                                <!-- New Staff Section -->
                                 <div class="chart-card">
-                                    <div class="chart-title">Low Stock Alerts</div>
-                                    <ul class="alert-list">
-                                        <li><span class="text-danger">⚠</span> iPhone 14 Pro - Only 3 units left</li>
-                                        <li><span class="text-danger">⚠</span> MacBook Air M2 - Only 2 units left</li>
-                                        <li><span class="text-danger">⚠</span> iPad Pro 12.9" - Only 1 unit left</li>
-                                        <li><span class="text-danger">⚠</span> Sony Headphones - Only 5 units left</li>
-                                    </ul>
+                                    <div class="chart-title">New Staff (Last 30 Days)</div>
+                                    <div class="table-responsive">
+                                        <table class="table new-staff-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Staff</th>
+                                                    <th>Position</th>
+                                                    <th>Date Joined</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php if (!empty($new_staff)): ?>
+                                                    <?php foreach ($new_staff as $staff): ?>
+                                                        <tr>
+                                                            <td>
+                                                                <div class="staff-info">
+                                                                    <div class="staff-avatar bg-label-<?php echo getAvatarColor($staff['position']); ?>">
+                                                                        <?php
+                                                                        $staff_pic = getProfilePicture($staff['profile_picture'], $staff['full_name']);
+                                                                        if ($staff_pic): ?>
+                                                                            <img src="<?php echo htmlspecialchars($staff_pic); ?>" alt="Profile Picture">
+                                                                        <?php else: ?>
+                                                                            <?php echo strtoupper(substr($staff['full_name'] ?: 'U', 0, 1)); ?>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                    <div>
+                                                                        <div class="user-name"><?php echo htmlspecialchars($staff['full_name'] ?: 'N/A'); ?></div>
+                                                                        <small class="text-muted">ID: <?php echo htmlspecialchars($staff['Id']); ?></small>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <span class="badge bg-label-<?php 
+                                                                    $position = strtolower($staff['position']);
+                                                                    if ($position == 'admin') echo 'success';
+                                                                    elseif ($position == 'manager') echo 'info';
+                                                                    elseif ($position == 'staff') echo 'warning';
+                                                                    else echo 'secondary';
+                                                                ?>">
+                                                                    <?php echo htmlspecialchars(ucfirst($staff['position'])); ?>
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <?php 
+                                                                if ($staff['date_join']) {
+                                                                    echo date('d/M/Y', strtotime($staff['date_join']));
+                                                                } else {
+                                                                    echo 'N/A';
+                                                                }
+                                                                ?>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <tr>
+                                                        <td colspan="3" class="text-center text-muted">No new staff in the last 30 days</td>
+                                                    </tr>
+                                                <?php endif; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
 
                                 <!-- Quick Actions -->
@@ -593,6 +894,13 @@ try {
     </div>
     <!-- / Layout wrapper -->
 
+    <?php
+    // Close database connection at the end
+    if (isset($conn)) {
+        mysqli_close($conn);
+    }
+    ?>
+
     <!-- Core JS -->
     <script src="assets/vendor/libs/jquery/jquery.js"></script>
     <script src="assets/vendor/libs/popper/popper.js"></script>
@@ -614,17 +922,44 @@ try {
     setInterval(function() {
         // You can add AJAX calls here to refresh dashboard data
         console.log('Dashboard data refreshed');
+        // Example: location.reload(); // Uncomment to auto-refresh page
     }, 300000);
 
-    // Search functionality
-    document.querySelector('input[aria-label="Search..."]').addEventListener('keyup', function(e) {
-        if (e.key === 'Enter') {
-            const searchTerm = this.value;
-            if (searchTerm.trim()) {
-                // Implement search functionality
-                console.log('Searching for:', searchTerm);
-            }
+    // Simple search functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.querySelector('input[aria-label="Search"]');
+        
+        if (searchInput) {
+            searchInput.addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') {
+                    const searchTerm = this.value;
+                    if (searchTerm.trim()) {
+                        // Simple search redirect
+                        window.location.href = 'search.php?q=' + encodeURIComponent(searchTerm);
+                    }
+                }
+            });
         }
+    });
+
+    // Add smooth transitions for cards
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            card.style.transition = 'transform 0.2s ease-in-out';
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+    });
+
+    // Show notification for low stock items
+    document.addEventListener('DOMContentLoaded', function() {
+        // You can add other notifications here
+        console.log('Dashboard loaded successfully');
     });
     </script>
 </body>
