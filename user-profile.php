@@ -33,6 +33,26 @@ $error = '';
 $success = '';
 $isEdit = false;
 
+// Photo upload configuration
+$uploadDir = 'uploads/photos/';
+$allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+$maxFileSize = 2 * 1024 * 1024; // 2MB
+
+// Create upload directory if it doesn't exist
+if (!file_exists($uploadDir)) {
+    if (!mkdir($uploadDir, 0755, true)) {
+        $error = "Failed to create upload directory: $uploadDir";
+    }
+}
+
+// Check if directory is writable
+if (!is_writable($uploadDir)) {
+    chmod($uploadDir, 0755);
+    if (!is_writable($uploadDir)) {
+        $error = "Upload directory is not writable: $uploadDir";
+    }
+}
+
 // Try to establish database connection with error handling
 try {
     $conn = mysqli_connect($host, $user, $pass, $dbname);
@@ -81,117 +101,167 @@ try {
     
     // Process form submission
     if (isset($_POST['submit'])) {
-        // Validate and sanitize input data
-        if (isset($_POST['Id'])) $Id = mysqli_real_escape_string($conn, $_POST['Id']);
-        if (isset($_POST['date_join'])) $date_join = mysqli_real_escape_string($conn, $_POST['date_join']);
-        if (isset($_POST['full_name'])) $full_name = mysqli_real_escape_string($conn, $_POST['full_name']);
-        if (isset($_POST['email'])) $email = mysqli_real_escape_string($conn, $_POST['email']);
-        if (isset($_POST['phone_no'])) $phone_no = mysqli_real_escape_string($conn, $_POST['phone_no']);
-        if (isset($_POST['username'])) $username = mysqli_real_escape_string($conn, $_POST['username']);
-        if (isset($_POST['password'])) $password = mysqli_real_escape_string($conn, $_POST['password']);
-        if (isset($_POST['position'])) $position = mysqli_real_escape_string($conn, $_POST['position']);
-        $active = isset($_POST['status']) ? 1 : 0;
+        // Handle photo upload first
+        $uploadedFileName = $profile_picture; // Keep existing if no new upload
         
-        // Handle password hashing
-        if (!empty($password)) {
-            $password = password_hash($password, PASSWORD_DEFAULT);
+        if (isset($_FILES['profile_pic']) && $_FILES['profile_pic']['error'] == UPLOAD_ERR_OK) {
+            $file = $_FILES['profile_pic'];
+            
+            // Validate file
+            if ($file['size'] > $maxFileSize) {
+                $error = "File is too large. Maximum size is 2MB.";
+            } elseif (!in_array($file['type'], $allowedTypes)) {
+                $error = "Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.";
+            } else {
+                // Generate unique filename
+                $fileExtension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $newFileName = uniqid() . '_' . time() . '.' . $fileExtension;
+                $filePath = $uploadDir . $newFileName;
+                
+                // Move uploaded file to destination
+                if (move_uploaded_file($file['tmp_name'], $filePath)) {
+                    // Delete old profile picture if it's not the default
+                    if ($isEdit && $profile_picture && $profile_picture != 'default.jpg' && file_exists($uploadDir . $profile_picture)) {
+                        unlink($uploadDir . $profile_picture);
+                    }
+                    $uploadedFileName = $newFileName;
+                } else {
+                    $error = "Failed to upload profile picture.";
+                }
+            }
         }
         
-        // Check if this is an update or insert
-        $isUpdate = isset($_POST['is_edit']) && $_POST['is_edit'] == '1';
-        
-        if ($isUpdate) {
-            // Update existing user
-            if($Id && $full_name && $email && $phone_no && $username) {
-                // Build update query - only update password if new one is provided
-                if (!empty($password)) {
-                    $sql = "UPDATE user_profiles SET 
-                            date_join = '$date_join',
-                            full_name = '$full_name', 
-                            email = '$email', 
-                            phone_no = '$phone_no', 
-                            username = '$username', 
-                            password = '$password', 
-                            position = '$position',
-                            profile_picture = '$profile_picture',
-                            active = '$active'
-                            WHERE Id = '$Id'";
-                } else {
-                    $sql = "UPDATE user_profiles SET 
-                            date_join = '$date_join',
-                            full_name = '$full_name', 
-                            email = '$email', 
-                            phone_no = '$phone_no', 
-                            username = '$username', 
-                            position = '$position',
-                            profile_picture = '$profile_picture',
-                            active = '$active'
-                            WHERE Id = '$Id'";
-                }
-                
-                $q1 = mysqli_query($conn, $sql);
-                
-                if($q1) {
-                    $success = "User updated successfully!";
-                    // Update session data if user updated their own profile
-                    if ($Id == $_SESSION['user_id']) {
-                        $_SESSION['full_name'] = $full_name;
-                        $_SESSION['username'] = $username;
-                        $_SESSION['email'] = $email;
-                        $_SESSION['position'] = $position;
+        // Continue with form processing only if no upload errors
+        if (empty($error)) {
+            // Validate and sanitize input data
+            if (isset($_POST['Id'])) $Id = mysqli_real_escape_string($conn, $_POST['Id']);
+            if (isset($_POST['date_join'])) $date_join = mysqli_real_escape_string($conn, $_POST['date_join']);
+            if (isset($_POST['full_name'])) $full_name = mysqli_real_escape_string($conn, $_POST['full_name']);
+            if (isset($_POST['email'])) $email = mysqli_real_escape_string($conn, $_POST['email']);
+            if (isset($_POST['phone_no'])) $phone_no = mysqli_real_escape_string($conn, $_POST['phone_no']);
+            if (isset($_POST['username'])) $username = mysqli_real_escape_string($conn, $_POST['username']);
+            if (isset($_POST['password'])) $password = mysqli_real_escape_string($conn, $_POST['password']);
+            if (isset($_POST['position'])) $position = mysqli_real_escape_string($conn, $_POST['position']);
+            $active = isset($_POST['status']) ? 1 : 0;
+            $profile_picture = $uploadedFileName;
+            
+            // Handle password hashing
+            if (!empty($password)) {
+                $password = password_hash($password, PASSWORD_DEFAULT);
+            }
+            
+            // Check if this is an update or insert
+            $isUpdate = isset($_POST['is_edit']) && $_POST['is_edit'] == '1';
+            
+            if ($isUpdate) {
+                // Update existing user
+                if($Id && $full_name && $email && $phone_no && $username) {
+                    // Build update query - only update password if new one is provided
+                    if (!empty($password)) {
+                        $sql = "UPDATE user_profiles SET 
+                                date_join = '$date_join',
+                                full_name = '$full_name', 
+                                email = '$email', 
+                                phone_no = '$phone_no', 
+                                username = '$username', 
+                                password = '$password', 
+                                position = '$position',
+                                profile_picture = '$profile_picture',
+                                active = '$active'
+                                WHERE Id = '$Id'";
+                    } else {
+                        $sql = "UPDATE user_profiles SET 
+                                date_join = '$date_join',
+                                full_name = '$full_name', 
+                                email = '$email', 
+                                phone_no = '$phone_no', 
+                                username = '$username', 
+                                position = '$position',
+                                profile_picture = '$profile_picture',
+                                active = '$active'
+                                WHERE Id = '$Id'";
                     }
-                } else {
-                    $error = "Update failed: " . mysqli_error($conn);
-                }
-            } else {
-                $error = "All required fields must be filled!";
-            }
-        } else {
-            // Insert new user
-            // Generate new ID: ABxxxx
-            $query = "SELECT MAX(Id) as Id FROM user_profiles WHERE Id LIKE 'AB%'";
-            $result = mysqli_query($conn, $query);
-            $row = mysqli_fetch_assoc($result);
-            
-            if ($row && $row['Id']) {
-                // Extract numeric part and increment
-                $last_num = (int)substr($row['Id'], 2);
-                $new_num = $last_num + 1;
-                $Id = 'AB' . str_pad($new_num, 4, '0', STR_PAD_LEFT);
-            } else {
-                $Id = 'AB0001'; // First ID
-            }
-            
-            // Validate required fields
-            if($Id && $date_join && $full_name && $email && $phone_no && $username && $password) {
-                // Check if username or email already exists
-                $checkSql = "SELECT Id FROM user_profiles WHERE username = '$username' OR email = '$email'";
-                $checkResult = mysqli_query($conn, $checkSql);
-                
-                if (mysqli_num_rows($checkResult) > 0) {
-                    $error = "Username or email already exists!";
-                } else {
-                    $sql = "INSERT INTO user_profiles(Id, date_join, full_name, email, phone_no, username, password, position, profile_picture, active) 
-                            VALUES ('$Id', '$date_join', '$full_name', '$email', '$phone_no', '$username', '$password', '$position', '$profile_picture', '$active')";
                     
                     $q1 = mysqli_query($conn, $sql);
                     
                     if($q1) {
-                        $success = "User created successfully!";
-                        // Reset form for new entry
-                        if (!$isEdit) {
-                            $Id = $date_join = $full_name = $email = $phone_no = $username = $password = '';
-                            $position = 'user';
-                            $profile_picture = 'default.jpg';
-                            $active = 1;
+                        $success = "User updated successfully!";
+                        // Update session data if user updated their own profile
+                        if ($Id == $_SESSION['user_id']) {
+                            $_SESSION['full_name'] = $full_name;
+                            $_SESSION['username'] = $username;
+                            $_SESSION['email'] = $email;
+                            $_SESSION['position'] = $position;
+                            $_SESSION['profile_picture'] = $profile_picture;
                         }
                     } else {
-                        $error = "Data insertion failed: " . mysqli_error($conn);
+                        $error = "Update failed: " . mysqli_error($conn);
                     }
+                } else {
+                    $error = "All required fields must be filled!";
                 }
             } else {
-                $error = "All fields are required!";
+                // Insert new user
+                // Generate new ID: ABxxxx
+                $query = "SELECT MAX(Id) as Id FROM user_profiles WHERE Id LIKE 'AB%'";
+                $result = mysqli_query($conn, $query);
+                $row = mysqli_fetch_assoc($result);
+                
+                if ($row && $row['Id']) {
+                    // Extract numeric part and increment
+                    $last_num = (int)substr($row['Id'], 2);
+                    $new_num = $last_num + 1;
+                    $Id = 'AB' . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+                } else {
+                    $Id = 'AB0001'; // First ID
+                }
+                
+                // Validate required fields
+                if($Id && $date_join && $full_name && $email && $phone_no && $username && $password) {
+                    // Check if username or email already exists
+                    $checkSql = "SELECT Id FROM user_profiles WHERE username = '$username' OR email = '$email'";
+                    $checkResult = mysqli_query($conn, $checkSql);
+                    
+                    if (mysqli_num_rows($checkResult) > 0) {
+                        $error = "Username or email already exists!";
+                    } else {
+                        $sql = "INSERT INTO user_profiles(Id, date_join, full_name, email, phone_no, username, password, position, profile_picture, active) 
+                                VALUES ('$Id', '$date_join', '$full_name', '$email', '$phone_no', '$username', '$password', '$position', '$profile_picture', '$active')";
+                        
+                        $q1 = mysqli_query($conn, $sql);
+                        
+                        if($q1) {
+                            $success = "User created successfully!";
+                            // Reset form for new entry
+                            if (!$isEdit) {
+                                $Id = $date_join = $full_name = $email = $phone_no = $username = $password = '';
+                                $position = 'user';
+                                $profile_picture = 'default.jpg';
+                                $active = 1;
+                            }
+                        } else {
+                            $error = "Data insertion failed: " . mysqli_error($conn);
+                        }
+                    }
+                } else {
+                    $error = "All fields are required!";
+                }
             }
+        }
+    }
+    
+    // Handle remove profile picture
+    if (isset($_POST['remove_picture']) && $isEdit) {
+        if ($profile_picture && $profile_picture != 'default.jpg' && file_exists($uploadDir . $profile_picture)) {
+            unlink($uploadDir . $profile_picture);
+        }
+        
+        $sql = "UPDATE user_profiles SET profile_picture = 'default.jpg' WHERE Id = '$Id'";
+        if (mysqli_query($conn, $sql)) {
+            $profile_picture = 'default.jpg';
+            $success = "Profile picture removed successfully!";
+        } else {
+            $error = "Failed to remove profile picture.";
         }
     }
     
@@ -378,6 +448,15 @@ try {
         background-color: #4b5563;
     }
 
+    .btn-danger {
+        background-color: #ef4444;
+        color: #fff;
+    }
+
+    .btn-danger:hover {
+        background-color: #dc2626;
+    }
+
     .form-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -398,6 +477,15 @@ try {
 
     .required {
         color: #ef4444;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s;
     }
 
     .form-control:focus {
@@ -652,24 +740,25 @@ try {
 
             <form id="user-form" action="" method="POST" enctype="multipart/form-data">
                 <!-- Hidden fields -->
-                <input type="hidden" name="profile_picture" value="<?php echo htmlspecialchars($profile_picture); ?>">
                 <input type="hidden" name="is_edit" value="<?php echo $isEdit ? '1' : '0'; ?>">
 
                 <div class="profile-image-section">
-                    <div class="profile-image">
-                        <?php if ($profile_picture && $profile_picture != 'default.jpg'): ?>
-                            <img src="uploads/<?php echo htmlspecialchars($profile_picture); ?>" alt="Profile Picture">
+                    <div class="profile-image" id="profile-preview">
+                        <?php if ($profile_picture && $profile_picture != 'default.jpg' && file_exists($uploadDir . $profile_picture)): ?>
+                            <img src="<?php echo $uploadDir . htmlspecialchars($profile_picture); ?>" alt="Profile Picture">
                         <?php else: ?>
                             <span><?php echo $full_name ? strtoupper(substr($full_name, 0, 1)) : '👤'; ?></span>
                         <?php endif; ?>
                     </div>
                     <div class="image-upload-details">
                         <h3 class="upload-title">Profile Picture</h3>
-                        <p class="upload-desc">Upload a new profile picture. Recommended size: 300x300px, max 2MB.</p>
+                        <p class="upload-desc">Upload a new profile picture. Recommended size: 300x300px, max 2MB. Supported formats: JPG, PNG, GIF, WebP.</p>
                         <div class="upload-actions">
                             <input type="file" id="profile-pic" name="profile_pic" class="file-input" accept="image/*">
                             <label for="profile-pic" class="btn btn-outline">Upload New</label>
-                            <button type="button" class="btn btn-outline">Remove</button>
+                            <?php if ($profile_picture && $profile_picture != 'default.jpg'): ?>
+                                <button type="submit" name="remove_picture" class="btn btn-danger" onclick="return confirm('Are you sure you want to remove the profile picture?')">Remove</button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -731,10 +820,9 @@ try {
                     <div class="form-group">
                         <label for="position" class="form-label">Role/Permission <span class="required">*</span></label>
                         <select id="position" name="position" class="form-select" required>
-                            <option value="user" <?php if($position == "user") echo "selected"; ?>>User</option>
-                            <option value="moderator" <?php if($position == "moderator") echo "selected"; ?>>Moderator</option>
+                            <option value="staff" <?php if($position == "staff") echo "selected"; ?>>Staff</option>
                             <option value="admin" <?php if($position == "admin") echo "selected"; ?>>Admin</option>
-                            <option value="super-admin" <?php if($position == "super-admin") echo "selected"; ?>>Super Admin</option>
+                            <option value="manager" <?php if($position == "manager") echo "selected"; ?>>Manager</option>
                         </select>
                     </div>
 
@@ -829,16 +917,44 @@ try {
 
         // Profile picture preview
         const profilePicInput = document.getElementById('profile-pic');
-        const profileImage = document.querySelector('.profile-image');
+        const profilePreview = document.getElementById('profile-preview');
 
         profilePicInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
+                // Validate file size
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('File is too large. Maximum size is 2MB.');
+                    this.value = '';
+                    return;
+                }
+
+                // Validate file type
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                if (!allowedTypes.includes(file.type.toLowerCase())) {
+                    alert('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.');
+                    this.value = '';
+                    return;
+                }
+
+                // Show preview
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    profileImage.innerHTML = '<img src="' + e.target.result + '" alt="Profile Picture">';
+                    profilePreview.innerHTML = '<img src="' + e.target.result + '" alt="Profile Picture">';
                 };
                 reader.readAsDataURL(file);
+            }
+        });
+
+        // Dynamic profile picture initial based on name
+        const fullNameInput = document.getElementById('full_name');
+        fullNameInput.addEventListener('input', function() {
+            const profileImg = profilePreview.querySelector('img');
+            if (!profileImg && this.value) {
+                const initial = this.value.charAt(0).toUpperCase();
+                if (profilePreview.querySelector('span')) {
+                    profilePreview.querySelector('span').textContent = initial;
+                }
             }
         });
     });
@@ -851,3 +967,4 @@ try {
     }
     </script>
 </body>
+</html>
