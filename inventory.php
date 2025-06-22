@@ -24,32 +24,66 @@ if (!$conn) { // check connection
     die("Connection failed: " . mysqli_connect_error());
 }
 
-// Initialize user variables
+// Initialize user variables with proper defaults
 $profile_link = "#";
 $current_user_name = "User";
 $current_user_role = "User";
-$current_user_avatar = "1.png";
+$current_user_avatar = "default.jpg";
+$avatar_path = "uploads/photos/"; // Path where profile pictures are stored
+
+// Function to get user avatar URL
+function getUserAvatarUrl($avatar_filename, $avatar_path) {
+    if (empty($avatar_filename) || $avatar_filename == 'default.jpg') {
+        return null; // Will use initials instead
+    }
+    
+    if (file_exists($avatar_path . $avatar_filename)) {
+        return $avatar_path . $avatar_filename;
+    }
+    
+    return null; // Will use initials instead
+}
 
 // Session check and user profile link logic
 if (isset($_SESSION['user_id']) && $conn) {
     $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
     
-    // Fetch current user details from database
-    $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
-    $user_result = mysqli_query($conn, $user_query);
+    // Use prepared statement for better security
+    $user_query = "SELECT * FROM user_profiles WHERE Id = ? LIMIT 1";
+    $stmt = mysqli_prepare($conn, $user_query);
     
-    if ($user_result && mysqli_num_rows($user_result) > 0) {
-        $user_data = mysqli_fetch_assoc($user_result);
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, 's', $user_id);
+        mysqli_stmt_execute($stmt);
+        $user_result = mysqli_stmt_get_result($stmt);
         
-        // Set user information
-        $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
-        $current_user_role = $user_data['position'];
-        $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
-        
-        // Profile link goes to user-profile.php with their ID
-        $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
+        if ($user_result && mysqli_num_rows($user_result) > 0) {
+            $user_data = mysqli_fetch_assoc($user_result);
+            
+            // Set user information
+            $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
+            $current_user_role = ucfirst($user_data['position']); // Capitalize first letter
+            
+            // Handle profile picture path correctly
+            if (!empty($user_data['profile_picture']) && $user_data['profile_picture'] != 'default.jpg') {
+                // Check if the file exists in uploads/photos/
+                if (file_exists($avatar_path . $user_data['profile_picture'])) {
+                    $current_user_avatar = $user_data['profile_picture'];
+                } else {
+                    $current_user_avatar = 'default.jpg';
+                }
+            } else {
+                $current_user_avatar = 'default.jpg';
+            }
+            
+            // Profile link goes to user-profile.php with their ID
+            $profile_link = "user-profile.php?op=view&Id=" . urlencode($user_data['Id']);
+        }
+        mysqli_stmt_close($stmt);
     }
 }
+
+$user_avatar_url = getUserAvatarUrl($current_user_avatar, $avatar_path);
 
 // Initialize filter variables
 $search_term = '';
@@ -565,6 +599,41 @@ if ($category_result) {
         margin-top: 1.5rem;
     }
 
+    /* Avatar styles for better profile picture display */
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #696cff, #5f63f2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 16px;
+        position: relative;
+    }
+
+    .avatar-circle::after {
+        content: '';
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        width: 12px;
+        height: 12px;
+        background-color: #10b981;
+        border: 2px solid white;
+        border-radius: 50%;
+    }
+
+    .profile-image {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #f8f9fa;
+    }
+
     @media (max-width: 768px) {
         .filter-section {
             flex-direction: column;
@@ -608,6 +677,7 @@ if ($category_result) {
                             <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
+
                     <a href="javascript:void(0);"
                         class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
                         <i class="bx bx-chevron-left bx-sm align-middle"></i>
@@ -629,82 +699,43 @@ if ($category_result) {
                         <span class="menu-header-text">Pages</span>
                     </li>
                     <li class="menu-item active">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-dock-top"></i>
-                            <div data-i18n="stock">Stock</div>
+                        <a href="inventory.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <div data-i18n="Analytics">Inventory</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item active">
-                                <a href="inventory.php" class="menu-link">
-                                    <div data-i18n="inventory">Inventory</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="order-item.php" class="menu-link">
-                                    <div data-i18n="order_item">Order Item</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-notepad"></i>
-                            <div data-i18n="sales">Sales</div>
+                        <a href="stock-management.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-list-plus"></i>
+                            <div data-i18n="Analytics">Stock Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="booking-item.php" class="menu-link">
-                                    <div data-i18n="booking_item">Booking Item</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
-                            <div data-i18n="invoice">Invoice</div>
-                        </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="receipt.php" class="menu-link">
-                                    <div data-i18n="receipt">Receipt</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="report.php" class="menu-link">
-                                    <div data-i18n="receipt">Report</div>
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                        <a href="customer-supplier.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bxs-user-detail"></i>
-                            <div data-i18n="sales">Customer & Supplier</div>
+                            <div data-i18n="Analytics">Supplier & Customer</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="customer-supplier.php" class="menu-link">
-                                    <div data-i18n="booking_item">Customer & Supplier Management</div>
-                                </a>
-                            </li>
-                        </ul>
+                    </li>
+                    <li class="menu-item">
+                        <a href="order-billing.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <div data-i18n="Analytics">Order & Billing</div>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="report.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bxs-report"></i>
+                            <div data-i18n="Analytics">Report</div>
+                        </a>
                     </li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Account</span></li>
 
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                        <a href="user.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-user"></i>
-                            <div data-i18n="admin">Admin</div>
+                            <div data-i18n="Analytics">User Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="user.php" class="menu-link">
-                                    <div data-i18n="user">User</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                 </ul>
             </aside>
@@ -738,18 +769,32 @@ if ($category_result) {
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
                                     <div class="avatar avatar-online">
-                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                            alt class="w-px-40 h-auto rounded-circle" />
+                                        <?php if ($user_avatar_url): ?>
+                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" 
+                                                 alt="<?php echo htmlspecialchars($current_user_name); ?>" 
+                                                 class="profile-image" />
+                                        <?php else: ?>
+                                            <div class="avatar-circle">
+                                                <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item" href="#">
+                                        <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <div class="d-flex">
                                                 <div class="flex-shrink-0 me-3">
                                                     <div class="avatar avatar-online">
-                                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                                            alt class="w-px-40 h-auto rounded-circle" />
+                                                        <?php if ($user_avatar_url): ?>
+                                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" 
+                                                                 alt="<?php echo htmlspecialchars($current_user_name); ?>" 
+                                                                 class="profile-image" />
+                                                        <?php else: ?>
+                                                            <div class="avatar-circle">
+                                                                <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                            </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                                 <div class="flex-grow-1">
@@ -757,7 +802,7 @@ if ($category_result) {
                                                         <?php echo htmlspecialchars($current_user_name); ?>
                                                     </span>
                                                     <small class="text-muted">
-                                                        <?php echo htmlspecialchars(ucfirst($current_user_role)); ?>
+                                                        <?php echo htmlspecialchars($current_user_role); ?>
                                                     </small>
                                                 </div>
                                             </div>

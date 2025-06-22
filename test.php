@@ -6,10 +6,10 @@ ini_set('display_errors', 1);
 // Start session
 session_start();
 
-// Check if user is logged in - Updated to use consistent session variable
-if (!isset($_SESSION['user_id'])) {
-    header("Location: auth-login-basic.html");
-    exit();
+// Check if user is logged in
+if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
+    header("location: login.php");
+    exit;
 }
 
 // Database connection
@@ -36,23 +36,14 @@ try {
         throw new Exception("Connection failed: " . mysqli_connect_error());
     }
 
-    // Handle delete operation - Updated to use prepared statements
-    if(isset($_GET['op']) && $_GET['op'] == 'delete' && isset($_GET['Id'])){
-        $deleteId = sanitize_input($_GET['Id']);
-        
-        $deleteSql = "DELETE FROM user_profiles WHERE Id = ?";
-        $stmt = mysqli_prepare($conn, $deleteSql);
-        
-        if ($stmt) {
-            mysqli_stmt_bind_param($stmt, 's', $deleteId);
-            if(mysqli_stmt_execute($stmt)){
-                $success = "User deleted successfully!";
-            } else {
-                $error = "Error deleting user: " . mysqli_stmt_error($stmt);
-            }
-            mysqli_stmt_close($stmt);
+    // Handle delete operation
+    if(isset($_GET['op']) && $_GET['op'] == 'delete'){
+        $deleteId = mysqli_real_escape_string($conn, $_GET['Id']);
+        $deleteSql = "DELETE FROM user_profiles WHERE Id = '$deleteId'";
+        if(mysqli_query($conn, $deleteSql)){
+            $success = "User deleted successfully!";
         } else {
-            $error = "Error preparing delete statement: " . mysqli_error($conn);
+            $error = "Error deleting user: " . mysqli_error($conn);
         }
     }
 
@@ -66,65 +57,19 @@ try {
     $error = "Error: " . $e->getMessage();
 }
 
-// Function to sanitize input data
-function sanitize_input($data) {
-    $data = trim($data);
-    $data = stripslashes($data);
-    $data = htmlspecialchars($data);
-    return $data;
-}
-
-// Initialize user variables with proper defaults
-$current_user_id = $_SESSION['user_id'];
+// Session check and user profile link logic
+// Determine the profile link based on user role and database lookup
+$profile_link = "#";
 $current_user_name = "User";
-$current_user_role = "user";
-$current_user_avatar = "default.jpg";
-$current_user_email = "";
-$avatar_path = "uploads/photos/"; // Path where profile pictures are stored
+$current_user_role = "User";
+$current_user_avatar = "1.png";
 
-// Function to get user avatar URL
-function getUserAvatarUrl($avatar_filename, $avatar_path) {
-    if (empty($avatar_filename) || $avatar_filename == 'default.jpg') {
-        return null; // Will use initials instead
-    }
+if (isset($_SESSION['user_id']) && $conn) {
+    $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
     
-    if (file_exists($avatar_path . $avatar_filename)) {
-        return $avatar_path . $avatar_filename;
-    }
-    
-    return null; // Will use initials instead
-}
-
-// Helper function to get avatar background color based on position
-function getAvatarColor($position) {
-    switch (strtolower($position)) {
-        case 'admin': return 'primary';
-        case 'super-admin': return 'danger';
-        case 'manager': return 'success';
-        case 'supervisor': return 'warning';
-        case 'staff': return 'info';
-        default: return 'secondary';
-    }
-}
-
-// Get user initials from full name
-function getUserInitials($name) {
-    $words = explode(' ', trim($name));
-    if (count($words) >= 2) {
-        return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
-    } else {
-        return strtoupper(substr($name, 0, 1));
-    }
-}
-
-// Fetch current user details from database with prepared statement
-$user_query = "SELECT * FROM user_profiles WHERE Id = ? LIMIT 1";
-$stmt = mysqli_prepare($conn, $user_query);
-
-if ($stmt) {
-    mysqli_stmt_bind_param($stmt, 's', $current_user_id);
-    mysqli_stmt_execute($stmt);
-    $user_result = mysqli_stmt_get_result($stmt);
+    // Fetch current user details from database
+    $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
+    $user_result = mysqli_query($conn, $user_query);
     
     if ($user_result && mysqli_num_rows($user_result) > 0) {
         $user_data = mysqli_fetch_assoc($user_result);
@@ -132,37 +77,25 @@ if ($stmt) {
         // Set user information
         $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
         $current_user_role = $user_data['position'];
-        $current_user_email = $user_data['email'];
+        $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
         
-        // Handle profile picture path correctly
-        if (!empty($user_data['profile_picture']) && $user_data['profile_picture'] != 'default.jpg') {
-            // Check if the file exists in uploads/photos/
-            if (file_exists($avatar_path . $user_data['profile_picture'])) {
-                $current_user_avatar = $user_data['profile_picture'];
-            } else {
-                $current_user_avatar = 'default.jpg';
-            }
-        } else {
-            $current_user_avatar = 'default.jpg';
-        }
+        // All users go to user-profile.php with their ID
+        $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
     }
-    mysqli_stmt_close($stmt);
 }
 
-$user_avatar_url = getUserAvatarUrl($current_user_avatar, $avatar_path);
-$user_initials = getUserInitials($current_user_name);
-$profile_link = "user-profile.php?op=view&Id=" . urlencode($current_user_id);
-
-// Helper function to get profile picture path for table display
-function getProfilePicture($profile_picture, $full_name) {
-    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
-        $photo_path = 'uploads/photos/' . $profile_picture;
-        if (file_exists($photo_path)) {
-            return $photo_path;
-        }
+// Helper function to get avatar background color based on position
+function getAvatarColor($position) {
+    switch (strtolower($position)) {
+        case 'admin':
+            return 'primary';
+        case 'super-admin':
+            return 'danger';
+        case 'moderator':
+            return 'warning';
+        default:
+            return 'info';
     }
-    // Return null to show initials instead
-    return null;
 }
 
 ?>
@@ -177,7 +110,7 @@ function getProfilePicture($profile_picture, $full_name) {
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
 
-    <title>User Management - Inventomo</title>
+    <title>User Management</title>
 
     <meta name="description" content="Inventory Management System - User Management" />
 
@@ -249,49 +182,20 @@ function getProfilePicture($profile_picture, $full_name) {
     }
 
     .user-avatar {
-        width: 40px;
-        height: 40px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         overflow: hidden;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        margin-right: 0.75rem;
-        font-weight: 600;
-        font-size: 14px;
-        color: white;
-        flex-shrink: 0;
-        position: relative;
-    }
-
-    .user-avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+        background-color: #f0f2f5;
+        margin-right: 0.5rem;
     }
 
     .user-info {
         display: flex;
         align-items: center;
-    }
-
-    .user-details {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-
-    .user-name {
-        font-weight: 600;
-        font-size: 14px;
-        margin-bottom: 2px;
-        color: #333;
-    }
-
-    .user-role {
-        font-size: 12px;
-        color: #666;
-        text-transform: capitalize;
     }
 
     .page-title {
@@ -319,38 +223,6 @@ function getProfilePicture($profile_picture, $full_name) {
 
     .alert-dismissible .btn-close {
         padding: 1rem;
-    }
-
-    /* Navbar user avatar styling */
-    .navbar .user-avatar {
-        width: 32px;
-        height: 32px;
-        margin-right: 0;
-    }
-
-    .dropdown-menu .user-avatar {
-        width: 40px;
-        height: 40px;
-        margin-right: 0.75rem;
-    }
-
-    .dropdown-item .d-flex {
-        align-items: center;
-    }
-
-    .dropdown-item .flex-grow-1 {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-
-    .profile-link {
-        text-decoration: none;
-        color: inherit;
-    }
-
-    .profile-link:hover {
-        color: inherit;
     }
     </style>
 
@@ -393,43 +265,82 @@ function getProfilePicture($profile_picture, $full_name) {
                         <span class="menu-header-text">Pages</span>
                     </li>
                     <li class="menu-item">
-                        <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-card"></i>
-                            <div data-i18n="Analytics">Inventory</div>
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-dock-top"></i>
+                            <div data-i18n="stock">Stock</div>
                         </a>
+                        <ul class="menu-sub">
+                            <li class="menu-item">
+                                <a href="inventory.php" class="menu-link">
+                                    <div data-i18n="inventory">Inventory</div>
+                                </a>
+                            </li>
+                            <li class="menu-item">
+                                <a href="order-item.php" class="menu-link">
+                                    <div data-i18n="order_item">Order Item</div>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="stock-management.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-list-plus"></i>
-                            <div data-i18n="Analytics">Stock Management</div>
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-notepad"></i>
+                            <div data-i18n="sales">Sales</div>
                         </a>
+                        <ul class="menu-sub">
+                            <li class="menu-item">
+                                <a href="booking-item.php" class="menu-link">
+                                    <div data-i18n="booking_item">Booking Item</div>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="customer-supplier.php" class="menu-link">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
+                            <div data-i18n="invoice">Invoice</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <li class="menu-item">
+                                <a href="receipt.php" class="menu-link">
+                                    <div data-i18n="receipt">Receipt</div>
+                                </a>
+                            </li>
+                            <li class="menu-item">
+                                <a href="report.php" class="menu-link">
+                                    <div data-i18n="receipt">Report</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="menu-item">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
                             <i class="menu-icon tf-icons bx bxs-user-detail"></i>
-                            <div data-i18n="Analytics">Supplier & Customer</div>
+                            <div data-i18n="sales">Customer & Supplier</div>
                         </a>
-                    </li>
-                    <li class="menu-item">
-                        <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-cart"></i>
-                            <div data-i18n="Analytics">Order & Billing</div>
-                        </a>
-                    </li>
-                    <li class="menu-item">
-                        <a href="report.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bxs-report"></i>
-                            <div data-i18n="Analytics">Report</div>
-                        </a>
+                        <ul class="menu-sub">
+                            <li class="menu-item">
+                                <a href="customer-supplier.php" class="menu-link">
+                                    <div data-i18n="booking_item">Customer & Supplier Management</div>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Account</span></li>
 
                     <li class="menu-item active">
-                        <a href="user.php" class="menu-link">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
                             <i class="menu-icon tf-icons bx bx-user"></i>
-                            <div data-i18n="Analytics">User Management</div>
+                            <div data-i18n="admin">Admin</div>
                         </a>
+                        <ul class="menu-sub">
+                            <li class="menu-item active">
+                                <a href="user.php" class="menu-link">
+                                    <div data-i18n="user">User</div>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                 </ul>
             </aside>
@@ -447,45 +358,33 @@ function getProfilePicture($profile_picture, $full_name) {
                     </div>
 
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-                        <!-- Search -->
-                        <div class="navbar-nav align-items-center">
-                            <div class="nav-item d-flex align-items-center">
-                                <i class="bx bx-search fs-4 lh-0"></i>
-                                <input type="text" class="form-control border-0 shadow-none" placeholder="Search..."
-                                    aria-label="Search..." id="navbar-search" />
-                            </div>
-                        </div>
-                        <!-- /Search -->
-
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
                             <!-- User -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
-                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                        <?php if ($user_avatar_url): ?>
-                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="<?php echo htmlspecialchars($current_user_name); ?>">
-                                        <?php else: ?>
-                                            <?php echo $user_initials; ?>
-                                        <?php endif; ?>
+                                    <div class="avatar avatar-online">
+                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
+                                            alt class="w-px-40 h-auto rounded-circle" />
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item profile-link" href="<?php echo $profile_link; ?>">
+                                        <a class="dropdown-item" href="#">
                                             <div class="d-flex">
                                                 <div class="flex-shrink-0 me-3">
-                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                                        <?php if ($user_avatar_url): ?>
-                                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="<?php echo htmlspecialchars($current_user_name); ?>">
-                                                        <?php else: ?>
-                                                            <?php echo $user_initials; ?>
-                                                        <?php endif; ?>
+                                                    <div class="avatar avatar-online">
+                                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
+                                                            alt class="w-px-40 h-auto rounded-circle" />
                                                     </div>
                                                 </div>
                                                 <div class="flex-grow-1">
-                                                    <span class="fw-semibold d-block"><?php echo htmlspecialchars($current_user_name); ?></span>
-                                                    <small class="text-muted"><?php echo htmlspecialchars(ucfirst($current_user_role)); ?></small>
+                                                    <span class="fw-semibold d-block">
+                                                        <?php echo htmlspecialchars($current_user_name); ?>
+                                                    </span>
+                                                    <small class="text-muted">
+                                                        <?php echo htmlspecialchars(ucfirst($current_user_role)); ?>
+                                                    </small>
                                                 </div>
                                             </div>
                                         </a>
@@ -497,12 +396,6 @@ function getProfilePicture($profile_picture, $full_name) {
                                         <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <i class="bx bx-user me-2"></i>
                                             <span class="align-middle">My Profile</span>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="user-settings.php">
-                                            <i class="bx bx-cog me-2"></i>
-                                            <span class="align-middle">Settings</span>
                                         </a>
                                     </li>
                                     <li>
@@ -595,34 +488,36 @@ function getProfilePicture($profile_picture, $full_name) {
                                                 $position = $r2['position'];
                                                 $date_join = date('M d, Y', strtotime($r2['date_join']));
                                                 $full_name = isset($r2['full_name']) ? $r2['full_name'] : $username;
+                                                // Default status (you can adjust this based on your database structure)
                                                 $status = isset($r2['active']) ? $r2['active'] : '1';
-                                                $profile_picture = isset($r2['profile_picture']) ? $r2['profile_picture'] : '';
                                                 
-                                                // Get profile picture path
-                                                $profile_pic_path = getProfilePicture($profile_picture, $full_name);
-                                                $table_user_initials = getUserInitials($full_name);
+                                                // Profile picture or default
+                                                $profile_pic = isset($r2['profile_picture']) && !empty($r2['profile_picture']) ? 
+                                                    'uploads/' . $r2['profile_picture'] : 'assets/img/avatars/default.png';
                                         ?>
                                         <tr>
                                             <td><?php echo $next++; ?></td>
                                             <td>
                                                 <div class="user-info">
-                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($position); ?>">
-                                                        <?php if ($profile_pic_path): ?>
-                                                            <img src="<?php echo htmlspecialchars($profile_pic_path); ?>" alt="Profile Picture">
+                                                    <div
+                                                        class="user-avatar bg-label-<?php echo getAvatarColor($position); ?>">
+                                                        <?php if ($profile_pic === 'assets/img/avatars/default.png'): ?>
+                                                        <span
+                                                            class="avatar-initial"><?php echo strtoupper(substr($full_name, 0, 1)); ?></span>
                                                         <?php else: ?>
-                                                            <?php echo $table_user_initials; ?>
+                                                        <img src="<?php echo $profile_pic; ?>" alt="Profile Picture">
                                                         <?php endif; ?>
                                                     </div>
-                                                    <div class="user-details">
-                                                        <div class="user-name"><?php echo htmlspecialchars($full_name); ?></div>
-                                                        <div class="user-role"><?php echo htmlspecialchars($position); ?></div>
+                                                    <div>
+                                                        <h6 class="mb-0"><?php echo $full_name; ?></h6>
+                                                        <small class="text-muted">@<?php echo $username; ?></small>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td><?php echo htmlspecialchars($id); ?></td>
-                                            <td><?php echo htmlspecialchars($email); ?></td>
+                                            <td><?php echo $id; ?></td>
+                                            <td><?php echo $email; ?></td>
                                             <td>
-                                                <span class="text-capitalize"><?php echo htmlspecialchars($position); ?></span>
+                                                <span class="text-capitalize"><?php echo $position; ?></span>
                                             </td>
                                             <td><?php echo $date_join; ?></td>
                                             <td>
@@ -633,13 +528,13 @@ function getProfilePicture($profile_picture, $full_name) {
                                             </td>
                                             <td>
                                                 <div class="action-btns d-flex justify-content-center">
-                                                    <a href="user-profile.php?op=view&Id=<?php echo urlencode($id); ?>"
+                                                    <a href="user-profile.php?op=view&Id=<?php echo $id; ?>"
                                                         class="action-btn edit-btn" data-bs-toggle="tooltip"
                                                         data-bs-placement="top" title="Edit User">
                                                         <i class="bx bx-edit-alt"></i>
                                                     </a>
                                                     <button type="button" class="action-btn delete-btn"
-                                                        onclick="deleteUser('<?php echo htmlspecialchars($id); ?>')"
+                                                        onclick="deleteUser('<?php echo $id; ?>')"
                                                         data-bs-toggle="tooltip" data-bs-placement="top"
                                                         title="Delete User">
                                                         <i class="bx bx-trash"></i>
@@ -839,7 +734,7 @@ function getProfilePicture($profile_picture, $full_name) {
 
     document.getElementById('confirmDelete').addEventListener('click', function() {
         if (deleteUserId) {
-            window.location.href = 'user.php?op=delete&Id=' + encodeURIComponent(deleteUserId);
+            window.location.href = 'user.php?op=delete&Id=' + deleteUserId;
         }
         deleteModal.hide();
     });
@@ -860,218 +755,6 @@ function getProfilePicture($profile_picture, $full_name) {
             roleSelect.value = role;
             $('#userTable').DataTable().draw();
         }
-    }
-
-    // Enhanced search functionality
-    function searchUsers(query) {
-        $('#userTable').DataTable().search(query).draw();
-    }
-
-    // Export functionality
-    function exportUsers(format) {
-        // Implementation for exporting users data
-        console.log('Exporting users in format:', format);
-    }
-
-    // Bulk actions
-    function selectAllUsers() {
-        const checkboxes = document.querySelectorAll('input[name="user_ids[]"]');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = true;
-        });
-    }
-
-    function deselectAllUsers() {
-        const checkboxes = document.querySelectorAll('input[name="user_ids[]"]');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = false;
-        });
-    }
-
-    function bulkDeleteUsers() {
-        const selectedUsers = [];
-        const checkboxes = document.querySelectorAll('input[name="user_ids[]"]:checked');
-        
-        checkboxes.forEach(checkbox => {
-            selectedUsers.push(checkbox.value);
-        });
-
-        if (selectedUsers.length === 0) {
-            alert('Please select at least one user to delete.');
-            return;
-        }
-
-        if (confirm(`Are you sure you want to delete ${selectedUsers.length} selected user(s)?`)) {
-            // Implementation for bulk delete
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = 'user.php';
-
-            const actionInput = document.createElement('input');
-            actionInput.type = 'hidden';
-            actionInput.name = 'action';
-            actionInput.value = 'bulk_delete';
-            form.appendChild(actionInput);
-
-            selectedUsers.forEach(userId => {
-                const userInput = document.createElement('input');
-                userInput.type = 'hidden';
-                userInput.name = 'user_ids[]';
-                userInput.value = userId;
-                form.appendChild(userInput);
-            });
-
-            document.body.appendChild(form);
-            form.submit();
-        }
-    }
-
-    // User status toggle
-    function toggleUserStatus(userId, currentStatus) {
-        const newStatus = currentStatus == '1' ? '0' : '1';
-        const statusText = newStatus == '1' ? 'activate' : 'deactivate';
-        
-        if (confirm(`Are you sure you want to ${statusText} this user?`)) {
-            fetch('user.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `action=toggle_status&user_id=${encodeURIComponent(userId)}&status=${newStatus}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error updating user status: ' + (data.message || 'Unknown error'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error updating user status');
-            });
-        }
-    }
-
-    // Advanced filters
-    function applyAdvancedFilters() {
-        const statusFilter = document.getElementById('status-filter')?.value || '';
-        const roleFilter = document.getElementById('role-filter')?.value || '';
-        const dateFromFilter = document.getElementById('date-from-filter')?.value || '';
-        const dateToFilter = document.getElementById('date-to-filter')?.value || '';
-
-        // Implementation for advanced filtering
-        console.log('Applying filters:', {
-            status: statusFilter,
-            role: roleFilter,
-            dateFrom: dateFromFilter,
-            dateTo: dateToFilter
-        });
-    }
-
-    // Clear all filters
-    function clearAllFilters() {
-        const filters = ['status-filter', 'role-filter', 'date-from-filter', 'date-to-filter'];
-        filters.forEach(filterId => {
-            const element = document.getElementById(filterId);
-            if (element) {
-                element.value = '';
-            }
-        });
-        
-        // Clear DataTable search
-        $('#userTable').DataTable().search('').draw();
-        
-        // Clear navbar search
-        const navbarSearch = document.getElementById('navbar-search');
-        if (navbarSearch) {
-            navbarSearch.value = '';
-        }
-    }
-
-    // User quick actions
-    function quickAction(action, userId) {
-        switch (action) {
-            case 'view':
-                window.location.href = `user-profile.php?op=view&Id=${encodeURIComponent(userId)}`;
-                break;
-            case 'edit':
-                window.location.href = `user-profile.php?op=edit&Id=${encodeURIComponent(userId)}`;
-                break;
-            case 'delete':
-                deleteUser(userId);
-                break;
-            case 'reset_password':
-                if (confirm('Are you sure you want to reset this user\'s password?')) {
-                    // Implementation for password reset
-                    console.log('Resetting password for user:', userId);
-                }
-                break;
-            default:
-                console.log('Unknown action:', action);
-        }
-    }
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        // Ctrl/Cmd + K for search focus
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            document.getElementById('navbar-search')?.focus();
-        }
-        
-        // Ctrl/Cmd + N for new user
-        if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-            e.preventDefault();
-            window.location.href = 'user-profile.php';
-        }
-        
-        // Escape to clear search
-        if (e.key === 'Escape') {
-            const searchInput = document.getElementById('navbar-search');
-            if (searchInput && searchInput === document.activeElement) {
-                searchInput.value = '';
-                $('#userTable').DataTable().search('').draw();
-                searchInput.blur();
-            }
-        }
-    });
-
-    // Auto-refresh functionality
-    let autoRefreshInterval;
-    
-    function enableAutoRefresh(intervalMinutes = 5) {
-        if (autoRefreshInterval) {
-            clearInterval(autoRefreshInterval);
-        }
-        
-        autoRefreshInterval = setInterval(() => {
-            // Silently refresh the table data
-            location.reload();
-        }, intervalMinutes * 60 * 1000);
-    }
-
-    function disableAutoRefresh() {
-        if (autoRefreshInterval) {
-            clearInterval(autoRefreshInterval);
-            autoRefreshInterval = null;
-        }
-    }
-
-    // Performance monitoring
-    function measureTablePerformance() {
-        const startTime = performance.now();
-        
-        $('#userTable').DataTable().draw();
-        
-        const endTime = performance.now();
-        console.log(`Table render time: ${endTime - startTime} milliseconds`);
-    }
-
-    // Initialize performance monitoring in development
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        measureTablePerformance();
     }
     </script>
 

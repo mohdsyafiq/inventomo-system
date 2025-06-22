@@ -23,6 +23,7 @@ $user = 'root';
 $pass = '';
 $dbname = 'inventory_system';
 
+
 // Attempt to connect to MySQL database
 $mysqli = @new mysqli($host, $user, $pass, $dbname);
 

@@ -63,7 +63,7 @@ try {
                 
                 // Insert user data into user_profiles table
                 $sql = "INSERT INTO user_profiles (Id, date_join, full_name, email, phone_no, username, password, position, profile_picture, active) 
-                        VALUES ('$id', CURDATE(), '$full_name', '$email', '$phone_no', '$username', '$hashed_password', 'user', 'default.jpg', 1)";
+                        VALUES ('$id', CURDATE(), '$full_name', '$email', '$phone_no', '$username', '$hashed_password', 'staff', 'default.jpg', 1)";
                 
                 $q1 = mysqli_query($conn, $sql);
                 

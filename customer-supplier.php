@@ -24,6 +24,36 @@ $current_user_name = "User";
 $current_user_role = "User";
 $current_user_avatar = "1.png";
 
+// Helper function to get avatar background color based on position
+function getAvatarColor($position) {
+    switch (strtolower($position)) {
+        case 'admin':
+            return 'primary';
+        case 'super-admin':
+            return 'danger';
+        case 'moderator':
+            return 'warning';
+        case 'manager':
+            return 'success';
+        case 'staff':
+            return 'info';
+        default:
+            return 'secondary';
+    }
+}
+
+// Helper function to get profile picture path
+function getProfilePicture($profile_picture, $full_name) {
+    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
+        $photo_path = 'uploads/photos/' . $profile_picture;
+        if (file_exists($photo_path)) {
+            return $photo_path;
+        }
+    }
+    // Return null to show initials instead
+    return null;
+}
+
 // Try to establish database connection with error handling
 try {
     $conn = mysqli_connect($host, $user, $pass, $dbname);
@@ -750,6 +780,46 @@ function getTypeIcon($type) {
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
     }
 
+    /* Profile Avatar Styles */
+    .user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-weight: 600;
+        font-size: 12px;
+        color: white;
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* Dropdown menu avatar styling */
+    .dropdown-menu .user-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 0.75rem;
+    }
+
+    .dropdown-item .d-flex {
+        align-items: center;
+    }
+
+    .dropdown-item .flex-grow-1 {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
     @media (max-width: 768px) {
         .filter-row {
             grid-template-columns: 1fr;
@@ -794,14 +864,6 @@ function getTypeIcon($type) {
 </head>
 
 <body>
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-spinner">
-            <i class="bx bx-loader-alt bx-spin"></i>
-            <span>Processing...</span>
-        </div>
-    </div>
-
     <!-- Layout wrapper -->
     <div class="layout-wrapper layout-content-navbar">
         <div class="layout-container">
@@ -813,6 +875,7 @@ function getTypeIcon($type) {
                             <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
+
                     <a href="javascript:void(0);"
                         class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
                         <i class="bx bx-chevron-left bx-sm align-middle"></i>
@@ -834,83 +897,43 @@ function getTypeIcon($type) {
                         <span class="menu-header-text">Pages</span>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-dock-top"></i>
-                            <div data-i18n="stock">Stock</div>
+                        <a href="inventory.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <div data-i18n="Analytics">Inventory</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="inventory.php" class="menu-link">
-                                    <div data-i18n="inventory">Inventory</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="order-item.php" class="menu-link">
-                                    <div data-i18n="order-item">Order Item</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-notepad"></i>
-                            <div data-i18n="sales">Sales</div>
+                        <a href="stock-management.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-list-plus"></i>
+                            <div data-i18n="Analytics">Stock Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="booking-item.php" class="menu-link">
-                                    <div data-i18n="booking-item">Booking Item</div>
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    
-                    <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
-                            <div data-i18n="invoice">Invoice</div>
-                        </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="receipt.php" class="menu-link">
-                                    <div data-i18n="receipt">Receipt</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="report.php" class="menu-link">
-                                    <div data-i18n="report">Report</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item active">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                        <a href="customer-supplier.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bxs-user-detail"></i>
-                            <div data-i18n="sales">Customer & Supplier</div>
+                            <div data-i18n="Analytics">Supplier & Customer</div>
                         </a>
-                        <ul class="menu-sub active">
-                            <li class="menu-item active">
-                                <a href="customer-supplier.php" class="menu-link">
-                                    <div data-i18n="booking_item">Customer & Supplier Management</div>
-                                </a>
-                            </li>
-                        </ul>
+                    </li>
+                    <li class="menu-item">
+                        <a href="order-billing.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <div data-i18n="Analytics">Order & Billing</div>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="report.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bxs-report"></i>
+                            <div data-i18n="Analytics">Report</div>
+                        </a>
                     </li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Account</span></li>
 
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                        <a href="user.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-user"></i>
-                            <div data-i18n="admin">Admin</div>
+                            <div data-i18n="Analytics">User Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="user.php" class="menu-link">
-                                    <div data-i18n="user">User</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                 </ul>
             </aside>
@@ -943,20 +966,26 @@ function getTypeIcon($type) {
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
-                                    <div class="avatar avatar-online">
-                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                            alt class="w-px-40 h-auto rounded-circle" />
+                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                        <?php
+                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
+                                        if ($navbar_pic): ?>
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <?php else: ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="flex-shrink-0 me-3">
-                                                    <div class="avatar avatar-online">
-                                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                                            alt class="w-px-40 h-auto rounded-circle" />
-                                                    </div>
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <?php if ($navbar_pic): ?>
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <?php else: ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
                                                     <span class="fw-semibold d-block">
@@ -976,12 +1005,6 @@ function getTypeIcon($type) {
                                         <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <i class="bx bx-user me-2"></i>
                                             <span class="align-middle">My Profile</span>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="#">
-                                            <i class="bx bx-cog me-2"></i>
-                                            <span class="align-middle">Settings</span>
                                         </a>
                                     </li>
                                     <li>

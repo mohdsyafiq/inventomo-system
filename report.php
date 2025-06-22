@@ -24,6 +24,36 @@ $current_user_name = "User";
 $current_user_role = "User";
 $current_user_avatar = "1.png";
 
+// Helper function to get avatar background color based on position
+function getAvatarColor($position) {
+    switch (strtolower($position)) {
+        case 'admin':
+            return 'primary';
+        case 'super-admin':
+            return 'danger';
+        case 'moderator':
+            return 'warning';
+        case 'manager':
+            return 'success';
+        case 'staff':
+            return 'info';
+        default:
+            return 'secondary';
+    }
+}
+
+// Helper function to get profile picture path
+function getProfilePicture($profile_picture, $full_name) {
+    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
+        $photo_path = 'uploads/photos/' . $profile_picture;
+        if (file_exists($photo_path)) {
+            return $photo_path;
+        }
+    }
+    // Return null to show initials instead
+    return null;
+}
+
 // Try to establish database connection with error handling
 try {
     $conn = mysqli_connect($host, $user, $pass, $dbname);
@@ -31,6 +61,9 @@ try {
     if (!$conn) {
         throw new Exception("Connection failed: " . mysqli_connect_error());
     }
+
+    // Set charset to handle special characters
+    mysqli_set_charset($conn, "utf8");
 
     // Session check and user profile link logic
     if (isset($_SESSION['user_id']) && $conn) {
@@ -172,7 +205,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
         rel="stylesheet" />
 
-    <!-- Icons. Uncomment required icon fonts -->
+    <!-- Icons -->
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
 
     <!-- Core CSS -->
@@ -189,14 +222,17 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1.5rem;
+        margin-bottom: 2rem;
     }
 
     .page-title {
-        font-size: 1.5rem;
-        font-weight: 600;
+        font-size: 1.75rem;
+        font-weight: 700;
         color: #566a7f;
         margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
     }
 
     .report-card {
@@ -204,6 +240,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         border-radius: 0.5rem;
         box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
         margin-bottom: 1.5rem;
+        overflow: hidden;
     }
 
     .card-header {
@@ -212,37 +249,45 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background-color: #f8f9fa;
     }
 
     .card-title {
-        font-size: 1.125rem;
+        font-size: 1.25rem;
         font-weight: 600;
         color: #566a7f;
         margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
     .card-actions {
         display: flex;
         gap: 0.75rem;
         align-items: center;
+        flex-wrap: wrap;
     }
 
     .btn-refresh {
         background-color: #696cff;
         color: white;
         border: none;
-        padding: 0.375rem 0.75rem;
+        padding: 0.5rem 1rem;
         border-radius: 0.375rem;
         font-size: 0.875rem;
         display: inline-flex;
         align-items: center;
-        gap: 0.25rem;
+        gap: 0.5rem;
         cursor: pointer;
         transition: all 0.2s;
+        font-weight: 500;
     }
 
     .btn-refresh:hover {
         background-color: #5f63f2;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(105, 108, 255, 0.2);
     }
 
     .filters-section {
@@ -260,9 +305,9 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     }
 
     .filter-label {
-        font-weight: 500;
+        font-weight: 600;
         color: #566a7f;
-        min-width: 80px;
+        min-width: 100px;
         font-size: 0.875rem;
     }
 
@@ -274,6 +319,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         color: #566a7f;
         background-color: white;
         min-width: 200px;
+        transition: border-color 0.2s ease;
     }
 
     .filter-input:focus {
@@ -324,6 +370,8 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     .btn-primary:hover {
         background-color: #5f63f2;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(105, 108, 255, 0.2);
     }
 
     .btn-secondary {
@@ -333,6 +381,8 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     .btn-secondary:hover {
         background-color: #5a6268;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(108, 117, 125, 0.2);
     }
 
     .btn-outline {
@@ -345,6 +395,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         background-color: #f5f5f9;
         border-color: #696cff;
         color: #696cff;
+        transform: translateY(-1px);
     }
 
     .btn-success {
@@ -354,6 +405,8 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     .btn-success:hover {
         background-color: #218838;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
     }
 
     .export-group {
@@ -370,6 +423,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         color: #566a7f;
         background-color: white;
         cursor: pointer;
+        transition: border-color 0.2s ease;
     }
 
     .export-select:focus {
@@ -389,7 +443,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     .report-table th,
     .report-table td {
-        padding: 0.75rem;
+        padding: 0.875rem 0.75rem;
         text-align: left;
         border-bottom: 1px solid #d9dee3;
     }
@@ -403,6 +457,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         letter-spacing: 0.4px;
         cursor: pointer;
         position: relative;
+        transition: background-color 0.2s ease;
     }
 
     .report-table th:hover {
@@ -412,10 +467,12 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     .report-table td {
         color: #566a7f;
         font-size: 0.875rem;
+        vertical-align: middle;
     }
 
     .report-table tbody tr:hover {
-        background-color: #f5f5f9;
+        background-color: #f8f9fa;
+        transition: background-color 0.2s ease;
     }
 
     .amount-col {
@@ -425,14 +482,24 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     .no-data {
         text-align: center;
-        padding: 3rem 1rem;
-        color: #9ca3af;
+        padding: 3rem 2rem;
+        color: #6c757d;
     }
 
     .no-data i {
         font-size: 3rem;
         margin-bottom: 1rem;
-        color: #d1d5db;
+        color: #d9dee3;
+    }
+
+    .no-data h5 {
+        margin-bottom: 0.5rem;
+        color: #566a7f;
+    }
+
+    .no-data p {
+        color: #9ca3af;
+        margin-bottom: 0;
     }
 
     .summary-section {
@@ -454,6 +521,12 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         border: 1px solid #d9dee3;
         text-align: center;
         box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .summary-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(161, 172, 184, 0.2);
     }
 
     .summary-label {
@@ -466,7 +539,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     }
 
     .summary-value {
-        font-size: 1.5rem;
+        font-size: 1.75rem;
         font-weight: 700;
         color: #374151;
     }
@@ -481,6 +554,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         align-items: center;
         padding: 1rem 1.5rem;
         border-top: 1px solid #d9dee3;
+        background-color: white;
     }
 
     .pagination-info {
@@ -523,22 +597,73 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(255, 255, 255, 0.8);
+        background: rgba(255, 255, 255, 0.9);
         display: none;
         align-items: center;
         justify-content: center;
         z-index: 10;
+        backdrop-filter: blur(2px);
     }
 
     .loading-spinner {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
         color: #696cff;
         font-weight: 500;
+        background: white;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    /* Profile Avatar Styles */
+    .user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-weight: 600;
+        font-size: 12px;
+        color: white;
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* Dropdown menu avatar styling */
+    .dropdown-menu .user-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 0.75rem;
+    }
+
+    .dropdown-item .d-flex {
+        align-items: center;
+    }
+
+    .dropdown-item .flex-grow-1 {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
 
     @media (max-width: 768px) {
+        .content-header {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
         .filter-row {
             flex-direction: column;
             align-items: stretch;
@@ -575,6 +700,14 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         .card-actions {
             justify-content: center;
         }
+
+        .table-section {
+            overflow-x: auto;
+        }
+
+        .report-table {
+            min-width: 800px;
+        }
     }
     </style>
 
@@ -595,6 +728,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                             <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
+
                     <a href="javascript:void(0);"
                         class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
                         <i class="bx bx-chevron-left bx-sm align-middle"></i>
@@ -616,82 +750,43 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                         <span class="menu-header-text">Pages</span>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-dock-top"></i>
-                            <div data-i18n="stock">Stock</div>
+                        <a href="inventory.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <div data-i18n="Analytics">Inventory</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="inventory.php" class="menu-link">
-                                    <div data-i18n="inventory">Inventory</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="order-item.php" class="menu-link">
-                                    <div data-i18n="order_item">Order Item</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-notepad"></i>
-                            <div data-i18n="sales">Sales</div>
+                        <a href="stock-management.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-list-plus"></i>
+                            <div data-i18n="Analytics">Stock Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="booking-item.php" class="menu-link">
-                                    <div data-i18n="booking_item">Booking Item</div>
-                                </a>
-                            </li>
-                        </ul>
+                    </li>
+                    <li class="menu-item">
+                        <a href="customer-supplier.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bxs-user-detail"></i>
+                            <div data-i18n="Analytics">Supplier & Customer</div>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="order-billing.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <div data-i18n="Analytics">Order & Billing</div>
+                        </a>
                     </li>
                     <li class="menu-item active">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
-                            <div data-i18n="invoice">Invoice</div>
+                        <a href="report.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bxs-report"></i>
+                            <div data-i18n="Analytics">Report</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="receipt.php" class="menu-link">
-                                    <div data-i18n="receipt">Receipt</div>
-                                </a>
-                            </li>
-                            <li class="menu-item active">
-                                <a href="report.php" class="menu-link">
-                                    <div data-i18n="report">Report</div>
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bxs-user-detail"></i>
-                            <div data-i18n="sales">Customer & Supplier</div>
-                        </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="customer-supplier.php" class="menu-link">
-                                    <div data-i18n="booking_item">Customer & Supplier Management</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Account</span></li>
 
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                        <a href="user.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-user"></i>
-                            <div data-i18n="admin">Admin</div>
+                            <div data-i18n="Analytics">User Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="user.php" class="menu-link">
-                                    <div data-i18n="user">User</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                 </ul>
             </aside>
@@ -724,20 +819,26 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
-                                    <div class="avatar avatar-online">
-                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                            alt class="w-px-40 h-auto rounded-circle" />
+                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                        <?php
+                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
+                                        if ($navbar_pic): ?>
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <?php else: ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="flex-shrink-0 me-3">
-                                                    <div class="avatar avatar-online">
-                                                        <img src="assets/img/avatars/<?php echo htmlspecialchars($current_user_avatar); ?>"
-                                                            alt class="w-px-40 h-auto rounded-circle" />
-                                                    </div>
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <?php if ($navbar_pic): ?>
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <?php else: ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
                                                     <span class="fw-semibold d-block">
@@ -788,7 +889,9 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                     <div class="container-xxl flex-grow-1 container-p-y">
                         <!-- Page Header -->
                         <div class="content-header">
-                            <h4 class="page-title">Sales Report</h4>
+                            <h4 class="page-title">
+                                <i class="bx bxs-report"></i>Sales Report Analytics
+                            </h4>
                         </div>
 
                         <!-- Report Card -->
@@ -802,7 +905,9 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                             </div>
 
                             <div class="card-header">
-                                <h5 class="card-title">Sales Transaction Report</h5>
+                                <h5 class="card-title">
+                                    <i class="bx bx-chart"></i>Sales Transaction Report
+                                </h5>
                                 <div class="card-actions">
                                     <button class="btn-refresh" onclick="refreshReport()">
                                         <i class="bx bx-refresh"></i>
@@ -814,6 +919,24 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
                             <!-- Filters Section -->
                             <div class="filters-section">
+                                <div class="filter-row">
+                                    <label class="filter-label">Date Range:</label>
+                                    <input type="date" class="filter-input" id="fromDate" placeholder="From Date">
+                                    <span class="date-separator">to</span>
+                                    <input type="date" class="filter-input" id="toDate" placeholder="To Date">
+                                    <span class="filter-note">Filter by transaction date</span>
+                                </div>
+                                <div class="filter-row">
+                                    <label class="filter-label">Item Search:</label>
+                                    <input type="text" class="filter-input" id="itemFilter" placeholder="Search by Item ID or Description">
+                                    <select class="filter-input" id="categoryFilter">
+                                        <option value="">All Categories</option>
+                                        <option value="electronics">Electronics</option>
+                                        <option value="clothing">Clothing</option>
+                                        <option value="accessories">Accessories</option>
+                                    </select>
+                                    <span class="filter-note">Filter by product category</span>
+                                </div>
                                 <div class="filter-row">
                                     <label class="filter-label">Amount Range:</label>
                                     <input type="number" class="filter-input" id="minAmount" placeholder="Min Amount (RM)" step="0.01">
@@ -959,12 +1082,17 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
+        initializeReporting();
+    });
+
+    function initializeReporting() {
         renderTable();
         updateSummary();
         setDefaultDates();
         setupTableSorting();
         setupKeyboardShortcuts();
-    });
+        setupSearchIntegration();
+    }
 
     // Set default dates (last 30 days)
     function setDefaultDates() {
@@ -1247,6 +1375,23 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         });
     }
 
+    // Setup search integration with navbar
+    function setupSearchIntegration() {
+        const navbarSearch = document.querySelector('input[aria-label="Search..."]');
+        if (navbarSearch) {
+            navbarSearch.addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') {
+                    const searchTerm = this.value;
+                    if (searchTerm.trim()) {
+                        // Set the item filter and trigger search
+                        document.getElementById('itemFilter').value = searchTerm;
+                        searchReport();
+                    }
+                }
+            });
+        }
+    }
+
     // Format date for display
     function formatDate(dateString) {
         const date = new Date(dateString);
@@ -1341,10 +1486,13 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     document.getElementById('fromDate').addEventListener('change', searchReport);
     document.getElementById('toDate').addEventListener('change', searchReport);
     document.getElementById('categoryFilter').addEventListener('change', searchReport);
+    
+    // Debounced search for amount fields
     document.getElementById('minAmount').addEventListener('input', function() {
         clearTimeout(this.searchTimeout);
         this.searchTimeout = setTimeout(searchReport, 500);
     });
+    
     document.getElementById('maxAmount').addEventListener('input', function() {
         clearTimeout(this.searchTimeout);
         this.searchTimeout = setTimeout(searchReport, 500);
@@ -1354,18 +1502,6 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     document.getElementById('exportFormat').addEventListener('change', function() {
         if (this.value) {
             exportReport();
-        }
-    });
-
-    // Enhanced search in navbar
-    document.querySelector('input[aria-label="Search..."]').addEventListener('keyup', function(e) {
-        if (e.key === 'Enter') {
-            const searchTerm = this.value;
-            if (searchTerm.trim()) {
-                // Set the item filter and trigger search
-                document.getElementById('itemFilter').value = searchTerm;
-                searchReport();
-            }
         }
     });
 
@@ -1385,4 +1521,10 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 </body>
 
 </html>
-                                
+
+<?php
+// Close database connection
+if ($conn) {
+    mysqli_close($conn);
+}
+?>

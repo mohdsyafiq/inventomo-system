@@ -3,6 +3,15 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Start session for user authentication
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: auth-login-basic.html");
+    exit();
+}
+
 // Database connection
 $host = 'localhost';
 $user = 'root';
@@ -14,6 +23,85 @@ $conn = mysqli_connect($host, $user, $pass, $dbname);
 if (!$conn) {
     throw new Exception("Connection failed: " . mysqli_connect_error());
 }
+
+// Initialize user variables with proper defaults
+$current_user_id = $_SESSION['user_id'];
+$current_user_name = "User";
+$current_user_role = "user";
+$current_user_avatar = "default.jpg";
+$current_user_email = "";
+$avatar_path = "uploads/photos/"; // Path where profile pictures are stored
+
+// Function to get user avatar URL
+function getUserAvatarUrl($avatar_filename, $avatar_path) {
+    if (empty($avatar_filename) || $avatar_filename == 'default.jpg') {
+        return null; // Will use initials instead
+    }
+    
+    if (file_exists($avatar_path . $avatar_filename)) {
+        return $avatar_path . $avatar_filename;
+    }
+    
+    return null; // Will use initials instead
+}
+
+// Helper function to get avatar background color based on position
+function getAvatarColor($position) {
+    switch (strtolower($position)) {
+        case 'admin': return 'primary';
+        case 'super-admin': return 'danger';
+        case 'manager': return 'success';
+        case 'supervisor': return 'warning';
+        case 'staff': return 'info';
+        default: return 'secondary';
+    }
+}
+
+// Get user initials from full name
+function getUserInitials($name) {
+    $words = explode(' ', trim($name));
+    if (count($words) >= 2) {
+        return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
+    } else {
+        return strtoupper(substr($name, 0, 1));
+    }
+}
+
+// Fetch current user details from database with prepared statement
+$user_query = "SELECT * FROM user_profiles WHERE Id = ? LIMIT 1";
+$stmt = mysqli_prepare($conn, $user_query);
+
+if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 's', $current_user_id);
+    mysqli_stmt_execute($stmt);
+    $user_result = mysqli_stmt_get_result($stmt);
+    
+    if ($user_result && mysqli_num_rows($user_result) > 0) {
+        $user_data = mysqli_fetch_assoc($user_result);
+        
+        // Set user information
+        $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
+        $current_user_role = $user_data['position'];
+        $current_user_email = $user_data['email'];
+        
+        // Handle profile picture path correctly
+        if (!empty($user_data['profile_picture']) && $user_data['profile_picture'] != 'default.jpg') {
+            // Check if the file exists in uploads/photos/
+            if (file_exists($avatar_path . $user_data['profile_picture'])) {
+                $current_user_avatar = $user_data['profile_picture'];
+            } else {
+                $current_user_avatar = 'default.jpg';
+            }
+        } else {
+            $current_user_avatar = 'default.jpg';
+        }
+    }
+    mysqli_stmt_close($stmt);
+}
+
+$user_avatar_url = getUserAvatarUrl($current_user_avatar, $avatar_path);
+$user_initials = getUserInitials($current_user_name);
+$profile_link = "user-profile.php?op=view&Id=" . urlencode($current_user_id);
 
 // Initialize variables
 $registrationID = "";
@@ -615,6 +703,48 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
             color: #28a745;
         }
 
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        
+        .user-avatar::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            background-color: #10b981;
+            border: 2px solid white;
+            border-radius: 50%;
+        }
+
+        .profile-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .profile-link:hover {
+            color: inherit;
+        }
+
         @media (max-width: 768px) {
             .form-row.two-columns,
             .form-row.three-columns {
@@ -643,9 +773,12 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
             <!-- Menu -->
             <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
                 <div class="app-brand demo">
-                    <span class="app-brand-logo demo">
-                        <img width="200" viewBox="0 0 25 42" version="1.1" src="assets/img/icons/brands/inventomo.png">
-                    </span>
+                    <a href="index.php" class="app-brand-link">
+                        <span class="app-brand-logo demo">
+                            <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                        </span>
+                    </a>
+
                     <a href="javascript:void(0);"
                         class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
                         <i class="bx bx-chevron-left bx-sm align-middle"></i>
@@ -667,79 +800,48 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
                         <span class="menu-header-text">Pages</span>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-dock-top"></i>
-                            <div data-i18n="stock">Stock</div>
+                        <a href="inventory.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <div data-i18n="Analytics">Inventory</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="inventory.php" class="menu-link">
-                                    <div data-i18n="inventory">Inventory</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="order-item.php" class="menu-link">
-                                    <div data-i18n="order-item">Order Item</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-notepad"></i>
-                            <div data-i18n="sales">Sales</div>
+                        <a href="stock-management.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-list-plus"></i>
+                            <div data-i18n="Analytics">Stock Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="booking-item.php" class="menu-link">
-                                    <div data-i18n="booking-item">Booking Item</div>
-                                </a>
-                            </li>
-                        </ul>
+                    </li>
+                    <li class="menu-item active">
+                        <a href="customer-supplier.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bxs-user-detail"></i>
+                            <div data-i18n="Analytics">Supplier & Customer</div>
+                        </a>
                     </li>
                     <li class="menu-item">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
-                            <div data-i18n="invoice">Invoice</div>
+                        <a href="order-billing.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <div data-i18n="Analytics">Order & Billing</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="receipt.php" class="menu-link">
-                                    <div data-i18n="receipt">Receipt</div>
-                                </a>
-                            </li>
-                            <li class="menu-item">
-                                <a href="report.php" class="menu-link">
-                                    <div data-i18n="receipt">Report</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
-                    
+                    <li class="menu-item">
+                        <a href="report.php" class="menu-link">
+                            <i class="menu-icon tf-icons bx bxs-report"></i>
+                            <div data-i18n="Analytics">Report</div>
+                        </a>
+                    </li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Account</span></li>
 
-                    <li class="menu-item active">
-                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                    <li class="menu-item">
+                        <a href="user.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-user"></i>
-                            <div data-i18n="admin">Admin</div>
+                            <div data-i18n="Analytics">User Management</div>
                         </a>
-                        <ul class="menu-sub">
-                            <li class="menu-item">
-                                <a href="user.php" class="menu-link">
-                                    <div data-i18n="user">User</div>
-                                </a>
-                            </li>
-                            <li class="menu-item active">
-                                <a href="customer-supplier.php" class="menu-link">
-                                    <div data-i18n="customer-supplier">Customer & Supplier</div>
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                 </ul>
             </aside>
             <!-- / Menu -->
+
 
             <!-- Layout container -->
             <div class="layout-page">
@@ -768,17 +870,30 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
-                                    <div class="avatar avatar-online">
-                                        <img src="assets/img/avatars/1.png" alt class="w-px-40 h-auto rounded-circle" />
+                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                        <?php if ($user_avatar_url): ?>
+                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="<?php echo htmlspecialchars($current_user_name); ?>">
+                                        <?php else: ?>
+                                            <?php echo $user_initials; ?>
+                                        <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item" href="#">
+                                        <a class="dropdown-item profile-link" href="<?php echo $profile_link; ?>">
                                             <div class="d-flex">
+                                                <div class="flex-shrink-0 me-3">
+                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                        <?php if ($user_avatar_url): ?>
+                                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="<?php echo htmlspecialchars($current_user_name); ?>">
+                                                        <?php else: ?>
+                                                            <?php echo $user_initials; ?>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
                                                 <div class="flex-grow-1">
-                                                    <span class="fw-semibold d-block">John Doe</span>
-                                                    <small class="text-muted">Admin</small>
+                                                    <span class="fw-semibold d-block"><?php echo htmlspecialchars($current_user_name); ?></span>
+                                                    <small class="text-muted"><?php echo htmlspecialchars(ucfirst($current_user_role)); ?></small>
                                                 </div>
                                             </div>
                                         </a>
@@ -787,19 +902,22 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
                                         <div class="dropdown-divider"></div>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item" href="#">
+                                        <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <i class="bx bx-user me-2"></i>
                                             <span class="align-middle">My Profile</span>
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item" href="#">
+                                        <a class="dropdown-item" href="user-settings.php">
                                             <i class="bx bx-cog me-2"></i>
                                             <span class="align-middle">Settings</span>
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item" href="auth-login-basic.html">
+                                        <div class="dropdown-divider"></div>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="logout.php">
                                             <i class="bx bx-power-off me-2"></i>
                                             <span class="align-middle">Log Out</span>
                                         </a>
@@ -1021,8 +1139,7 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
                     <footer class="content-footer footer bg-footer-theme">
                         <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>document.write(new Date().getFullYear());</script>,
-                                made with ❤️ by <a href="https://themeselection.com" target="_blank" class="footer-link fw-bolder">ThemeSelection</a>
+                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
                             </div>
                         </div>
                     </footer>
@@ -1102,22 +1219,6 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
             } else {
                 businessSection.style.display = 'none';
                 makeBusinessFieldsRequired(false);
-            }
-        }
-
-        // Update ID preview
-        function updateIdPreview(type) {
-            const idPreview = document.getElementById('idPreview');
-            const nextIdDisplay = document.getElementById('nextIdDisplay');
-            
-            if (type) {
-                // Generate preview ID directly in JavaScript
-                const prefix = (type === 'customer') ? 'CS' : 'SP';
-                nextIdDisplay.textContent = prefix + '001 (example)';
-                idPreview.className = 'id-preview ' + type;
-                idPreview.style.display = 'block';
-            } else {
-                idPreview.style.display = 'none';
             }
         }
 
@@ -1280,5 +1381,5 @@ $page_title = empty($registrationID) ? "New Registration" : "Update Registration
     <script src="assets/vendor/js/menu.js"></script>
     <script src="assets/js/main.js"></script>
 </body>
-</html>="flex-shrink-0 me-3">
-                                                
+</html>">
+                        

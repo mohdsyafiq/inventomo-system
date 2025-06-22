@@ -848,7 +848,8 @@ $sample_receipts = [
 
                         <!-- Search and Filter Section -->
                         <div class="search-filter-container">
-                            <input type="text" class="search-box" placeholder="Search receipts by ID, customer, or product..." id="receiptSearch">
+                            <input type="text" class="search-box"
+                                placeholder="Search receipts by ID, customer, or product..." id="receiptSearch">
                             <a href="#" class="btn-new-receipt" onclick="createNewReceipt()">
                                 <i class="bx bx-plus"></i>
                                 Generate Receipt
@@ -876,7 +877,9 @@ $sample_receipts = [
                                     <tbody>
                                         <?php foreach ($sample_receipts as $receipt): ?>
                                         <tr>
-                                            <td><span class="receipt-id"><?php echo htmlspecialchars($receipt['id']); ?></span></td>
+                                            <td><span
+                                                    class="receipt-id"><?php echo htmlspecialchars($receipt['id']); ?></span>
+                                            </td>
                                             <td><?php echo htmlspecialchars($receipt['invoice']); ?></td>
                                             <td><?php echo htmlspecialchars($receipt['customer']); ?></td>
                                             <td><?php echo htmlspecialchars($receipt['email']); ?></td>
@@ -885,10 +888,11 @@ $sample_receipts = [
                                             <td><?php echo date('d-m-Y', strtotime($receipt['date'])); ?></td>
                                             <td class="action-buttons">
                                                 <a href="javascript:void(0);" class="action-btn"
-                                                    onclick="openPdfViewer('<?php echo $receipt['id']; ?>')">
-                                                    <i class="bx bx-file-find"></i>View
+                                                    onclick="popupPrint('INV-2025-00120')">
+                                                    <i class="bx bx-file-find"></i>Print
                                                 </a>
-                                                <a href="javascript:void(0);" class="action-btn delete" onclick="deleteReceipt('<?php echo $receipt['id']; ?>')">
+                                                <a href="javascript:void(0);" class="action-btn delete"
+                                                    onclick="deleteReceipt('<?php echo $receipt['id']; ?>')">
                                                     <i class="bx bx-trash"></i>Delete
                                                 </a>
                                             </td>
@@ -903,9 +907,12 @@ $sample_receipts = [
 
                     <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
-                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div
+                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
+                                © <script>
+                                document.write(new Date().getFullYear());
+                                </script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -1228,13 +1235,14 @@ $sample_receipts = [
     document.getElementById('receiptSearch').addEventListener('keyup', function() {
         const searchTerm = this.value.toLowerCase();
         const tableRows = document.querySelectorAll('#receiptsTable tbody tr');
-        
+
         tableRows.forEach(row => {
             const receiptID = row.querySelector('.receipt-id').textContent.toLowerCase();
             const customerName = row.cells[2].textContent.toLowerCase();
             const product = row.cells[4].textContent.toLowerCase();
-            
-            if (receiptID.includes(searchTerm) || customerName.includes(searchTerm) || product.includes(searchTerm)) {
+
+            if (receiptID.includes(searchTerm) || customerName.includes(searchTerm) || product.includes(
+                    searchTerm)) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
@@ -1244,13 +1252,16 @@ $sample_receipts = [
 
     // Receipt management functions
     function createNewReceipt() {
-        alert('Generate New Receipt functionality would be implemented here.\nThis would typically redirect to a receipt generation form or integration with order system.');
+        alert(
+            'Generate New Receipt functionality would be implemented here.\nThis would typically redirect to a receipt generation form or integration with order system.');
         // window.location.href = 'create-receipt.php';
     }
 
     function deleteReceipt(receiptId) {
         if (confirm('Are you sure you want to delete receipt ' + receiptId + '? This action cannot be undone.')) {
-            alert('Delete Receipt ' + receiptId + ' functionality would be implemented here.\nThis would send a request to delete the receipt from the database.');
+            alert('Delete Receipt ' + receiptId +
+                ' functionality would be implemented here.\nThis would send a request to delete the receipt from the database.'
+                );
             // Implement actual delete functionality here
         }
     }
@@ -1363,16 +1374,17 @@ $sample_receipts = [
     document.addEventListener('DOMContentLoaded', function() {
         const tableHeaders = document.querySelectorAll('#receiptsTable th');
         let sortDirection = {};
-        
+
         tableHeaders.forEach((header, index) => {
             if (index < tableHeaders.length - 1) { // Don't add sorting to Actions column
                 header.style.cursor = 'pointer';
                 header.addEventListener('click', function() {
                     sortTable(index);
                 });
-                
+
                 // Add sort indicator
-                header.innerHTML += ' <i class="bx bx-sort" style="opacity: 0.5; font-size: 12px; margin-left: 5px;"></i>';
+                header.innerHTML +=
+                    ' <i class="bx bx-sort" style="opacity: 0.5; font-size: 12px; margin-left: 5px;"></i>';
             }
         });
 
@@ -1380,43 +1392,45 @@ $sample_receipts = [
             const table = document.getElementById('receiptsTable');
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.querySelectorAll('tr'));
-            
+
             // Toggle sort direction
             sortDirection[columnIndex] = sortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
-            
+
             rows.sort((a, b) => {
                 const aVal = a.cells[columnIndex].textContent.trim();
                 const bVal = b.cells[columnIndex].textContent.trim();
-                
+
                 let comparison = 0;
-                
+
                 // Handle different data types
                 if (columnIndex === 5) { // Amount column
                     const aNum = parseFloat(aVal.replace('RM', '').replace(',', ''));
                     const bNum = parseFloat(bVal.replace('RM', '').replace(',', ''));
                     comparison = aNum - bNum;
                 } else if (columnIndex === 6) { // Date column
-                    const aDate = new Date(aVal.split('-').reverse().join('-')); // Convert DD-MM-YYYY to YYYY-MM-DD
+                    const aDate = new Date(aVal.split('-').reverse().join(
+                    '-')); // Convert DD-MM-YYYY to YYYY-MM-DD
                     const bDate = new Date(bVal.split('-').reverse().join('-'));
                     comparison = aDate - bDate;
                 } else {
                     comparison = aVal.localeCompare(bVal);
                 }
-                
+
                 return sortDirection[columnIndex] === 'asc' ? comparison : -comparison;
             });
-            
+
             // Clear tbody and append sorted rows
             tbody.innerHTML = '';
             rows.forEach(row => tbody.appendChild(row));
-            
+
             // Update sort indicators
             const headers = table.querySelectorAll('th');
             headers.forEach((header, index) => {
                 const icon = header.querySelector('i');
                 if (icon) {
                     if (index === columnIndex) {
-                        icon.className = sortDirection[columnIndex] === 'asc' ? 'bx bx-sort-up' : 'bx bx-sort-down';
+                        icon.className = sortDirection[columnIndex] === 'asc' ? 'bx bx-sort-up' :
+                            'bx bx-sort-down';
                         icon.style.opacity = '1';
                     } else {
                         icon.className = 'bx bx-sort';
@@ -1433,7 +1447,7 @@ $sample_receipts = [
                 e.preventDefault();
                 createNewReceipt();
             }
-            
+
             // Escape to clear search
             if (e.key === 'Escape') {
                 const searchBox = document.getElementById('receiptSearch');
@@ -1445,11 +1459,18 @@ $sample_receipts = [
         });
     });
 
+    //print
+    function popupPrint(invoiceNo) {
+    const url = `slip-receipt.php?invoice=${invoiceNo}`;
+    const printWindow = window.open(url, 'PrintWindow', 'width=800,height=600');
+    printWindow.focus();
+}
+
     // Export functionality (placeholder)
     function exportReceipts() {
         const receipts = [];
         const rows = document.querySelectorAll('#receiptsTable tbody tr');
-        
+
         rows.forEach(row => {
             if (row.style.display !== 'none') {
                 const cells = row.querySelectorAll('td');
@@ -1464,7 +1485,7 @@ $sample_receipts = [
                 });
             }
         });
-        
+
         console.log('Exporting receipts:', receipts);
         alert('Export functionality would be implemented here.\nThis would generate CSV, Excel, or PDF reports.');
     }
