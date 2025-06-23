@@ -430,6 +430,28 @@ try {
         flex-direction: column;
         justify-content: center;
     }
+
+    body {
+    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+                url('assets/img/backgrounds/inside-background.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+}
+
+/* Ensure layout wrapper takes full space */
+.layout-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
+
+/* Content wrapper with transparent background to show body background */
+.content-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
     </style>
 </head>
 
@@ -468,7 +490,7 @@ try {
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -486,7 +508,7 @@ try {
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -851,11 +873,11 @@ try {
                                         <a href="inventory.php" class="btn btn-primary">
                                             <i class="bx bx-package me-2"></i>Manage Inventory
                                         </a>
-                                        <a href="order-item.php" class="btn btn-outline-primary">
-                                            <i class="bx bx-cart me-2"></i>New Order
+                                        <a href="stock-management.php" class="btn btn-outline-primary">
+                                            <i class="bx bx-list-plus"></i> Stock Management
                                         </a>
-                                        <a href="booking-item.php" class="btn btn-outline-primary">
-                                            <i class="bx bx-calendar me-2"></i>Book Item
+                                        <a href="customer-supplier.php" class="btn btn-outline-primary">
+                                            <i class="bx bxs-user-detail"></i> Supplier & Customer
                                         </a>
                                         <a href="report.php" class="btn btn-outline-secondary">
                                             <i class="bx bx-file me-2"></i>View Reports

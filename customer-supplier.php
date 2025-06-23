@@ -856,6 +856,34 @@ function getTypeIcon($type) {
             min-width: 800px;
         }
     }
+
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+            url('assets/img/backgrounds/inside-background.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        min-height: 100vh;
+    }
+
+    /* Ensure layout wrapper takes full space */
+    .layout-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    /* Content wrapper with transparent background to show body background */
+    .content-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    .page-title {
+        color: white;
+        font-size: 2.0rem;
+        font-weight: bold;
+    }
     </style>
 
     <!-- Helpers -->
@@ -898,7 +926,7 @@ function getTypeIcon($type) {
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -916,7 +944,7 @@ function getTypeIcon($type) {
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -970,9 +998,9 @@ function getTypeIcon($type) {
                                         <?php
                                         $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
                                         if ($navbar_pic): ?>
-                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
@@ -980,11 +1008,13 @@ function getTypeIcon($type) {
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                <div
+                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                                     <?php if ($navbar_pic): ?>
-                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
+                                                        alt="Profile Picture">
                                                     <?php else: ?>
-                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                                     <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
@@ -1030,7 +1060,7 @@ function getTypeIcon($type) {
                     <div class="container-xxl flex-grow-1 container-p-y">
                         <!-- Page Header -->
                         <div class="content-header">
-                            <h4 class="page-title">Customer & Supplier Management</h4>
+                            <h4 class="page-title"><i class="bx bxs-user-detail"></i> Customer & Supplier Management</h4>
                             <div class="header-actions">
                                 <button class="export-btn" onclick="showExportModal()">
                                     <i class="bx bx-download"></i>Export
@@ -1173,7 +1203,8 @@ function getTypeIcon($type) {
                                             <input type="checkbox" class="checkbox-input row-checkbox"
                                                 value="<?php echo htmlspecialchars($row['registrationID']); ?>">
                                         </td>
-                                        <td><strong><?php echo htmlspecialchars($row['registrationID']); ?></strong></td>
+                                        <td><strong><?php echo htmlspecialchars($row['registrationID']); ?></strong>
+                                        </td>
                                         <td><?php echo htmlspecialchars($row['firstName'] . ' ' . $row['lastName']); ?>
                                         </td>
                                         <td><?php echo htmlspecialchars($row['companyName']); ?></td>
@@ -1218,7 +1249,8 @@ function getTypeIcon($type) {
                                             <i class="bx bx-search-alt-2"></i>
                                             <h5>No records found</h5>
                                             <p>Try adjusting your search or filter criteria</p>
-                                            <a href="register-customer-supplier.php" class="add-btn" style="margin-top: 1rem;">
+                                            <a href="register-customer-supplier.php" class="add-btn"
+                                                style="margin-top: 1rem;">
                                                 <i class="bx bx-plus"></i>Add First Record
                                             </a>
                                         </td>
@@ -1248,9 +1280,12 @@ function getTypeIcon($type) {
 
                     <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
-                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div
+                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
+                                © <script>
+                                document.write(new Date().getFullYear());
+                                </script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -1321,7 +1356,8 @@ function getTypeIcon($type) {
                 const selectAllCheckbox = document.getElementById('selectAll');
 
                 selectAllCheckbox.checked = allCheckboxes.length === checkedCheckboxes.length;
-                selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < allCheckboxes.length;
+                selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length <
+                    allCheckboxes.length;
 
                 toggleBulkActions();
             }
@@ -1336,13 +1372,13 @@ function getTypeIcon($type) {
                 e.preventDefault();
                 window.location.href = 'register-customer-supplier.php';
             }
-            
+
             // Ctrl/Cmd + F to focus search
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 e.preventDefault();
                 document.querySelector('input[name="search"]').focus();
             }
-            
+
             // Escape to clear search
             if (e.key === 'Escape') {
                 const searchBox = document.querySelector('input[name="search"]');
@@ -1389,7 +1425,8 @@ function getTypeIcon($type) {
     // View record function
     function viewRecord(registrationID) {
         // In a real application, this would open a modal or navigate to a details page
-        alert(`View Details for Record: ${registrationID}\n\nThis would typically:\n• Show complete customer/supplier information\n• Display transaction history\n• Show contact details and documents\n• Provide quick actions`);
+        alert(
+            `View Details for Record: ${registrationID}\n\nThis would typically:\n• Show complete customer/supplier information\n• Display transaction history\n• Show contact details and documents\n• Provide quick actions`);
     }
 
     // Edit record function
@@ -1400,7 +1437,9 @@ function getTypeIcon($type) {
 
     // Delete single record function
     function deleteRecord(registrationID) {
-        if (confirm('Are you sure you want to delete this record?\n\nThis action cannot be undone and will remove:\n• All customer/supplier information\n• Associated transaction history\n• Contact details and documents')) {
+        if (confirm(
+                'Are you sure you want to delete this record?\n\nThis action cannot be undone and will remove:\n• All customer/supplier information\n• Associated transaction history\n• Contact details and documents'
+                )) {
             showLoading();
             document.getElementById('deleteRegistrationID').value = registrationID;
             document.getElementById('deleteForm').submit();
@@ -1419,9 +1458,9 @@ function getTypeIcon($type) {
 
         if (confirm(
                 `Are you sure you want to delete ${selectedIds.length} selected record(s)?\n\nThis action cannot be undone and will permanently remove:\n• All selected customer/supplier information\n• Associated transaction histories\n• Contact details and documents`
-                )) {
+            )) {
             showLoading();
-            
+
             // Clear existing hidden inputs
             const bulkDeleteIds = document.getElementById('bulkDeleteIds');
             bulkDeleteIds.innerHTML = '';
@@ -1459,7 +1498,7 @@ function getTypeIcon($type) {
         );
 
         let exportFormat = '';
-        switch(format) {
+        switch (format) {
             case '1':
                 exportFormat = 'excel';
                 break;
@@ -1477,7 +1516,7 @@ function getTypeIcon($type) {
             showLoading();
             document.getElementById('exportFormat').value = exportFormat;
             document.getElementById('exportForm').submit();
-            
+
             // Hide loading after a delay (simulate export processing)
             setTimeout(() => {
                 hideLoading();
@@ -1530,7 +1569,7 @@ function getTypeIcon($type) {
     function autoHideAlerts() {
         const successAlert = document.querySelector('.alert-success');
         const errorAlert = document.querySelector('.alert-danger');
-        
+
         if (successAlert) {
             setTimeout(() => {
                 successAlert.style.transition = 'opacity 0.5s ease';
@@ -1540,7 +1579,7 @@ function getTypeIcon($type) {
                 }, 500);
             }, 5000);
         }
-        
+
         if (errorAlert) {
             setTimeout(() => {
                 errorAlert.style.transition = 'opacity 0.5s ease';

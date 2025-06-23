@@ -95,7 +95,6 @@ if (isset($_SESSION['error_message'])) {
     unset($_SESSION['error_message']); // Clear it
 }
 
-
 // Query 1: Fetch Customer Purchase Orders (formerly Invoices)
 $sql_purchase_orders = "
     SELECT
@@ -213,7 +212,8 @@ function format_rm_display($amount) {
         border-radius: 0.375rem;
         text-decoration: none;
         color: white;
-        background-color: #696cff; /* Default primary color */
+        background-color: #696cff;
+        /* Default primary color */
         font-size: 0.875rem;
         font-weight: 500;
         transition: all 0.2s ease;
@@ -231,18 +231,48 @@ function format_rm_display($amount) {
         box-shadow: 0 4px 8px rgba(105, 108, 255, 0.2);
     }
 
-    .action-button.btn-success { background-color: #28a745; }
-    .action-button.btn-success:hover { background-color: #218838; box-shadow: 0 44px 8px rgba(40, 167, 69, 0.2); }
-    .action-button.btn-info { background-color: #17a2b8; }
-    .action-button.btn-info:hover { background-color: #138496; box-shadow: 0 4px 8px rgba(23, 162, 184, 0.2); }
-    .action-button.btn-warning { background-color: #ffc107; color: #212529; }
-    .action-button.btn-warning:hover { background-color: #e0a800; color: #212529; box-shadow: 0 4px 8px rgba(255, 193, 7, 0.2); }
-    .action-button.btn-danger { background-color: #dc3545; }
-    .action-button.btn-danger:hover { background-color: #c82333; box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2); }
+    .action-button.btn-success {
+        background-color: #28a745;
+    }
+
+    .action-button.btn-success:hover {
+        background-color: #218838;
+        box-shadow: 0 44px 8px rgba(40, 167, 69, 0.2);
+    }
+
+    .action-button.btn-info {
+        background-color: #17a2b8;
+    }
+
+    .action-button.btn-info:hover {
+        background-color: #138496;
+        box-shadow: 0 4px 8px rgba(23, 162, 184, 0.2);
+    }
+
+    .action-button.btn-warning {
+        background-color: #ffc107;
+        color: #212529;
+    }
+
+    .action-button.btn-warning:hover {
+        background-color: #e0a800;
+        color: #212529;
+        box-shadow: 0 4px 8px rgba(255, 193, 7, 0.2);
+    }
+
+    .action-button.btn-danger {
+        background-color: #dc3545;
+    }
+
+    .action-button.btn-danger:hover {
+        background-color: #c82333;
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+    }
 
     /* Specific styles for dropdown buttons */
     .dropdown-toggle.action-button {
-        padding-right: 1.5rem; /* Space for caret */
+        padding-right: 1.5rem;
+        /* Space for caret */
     }
 
     .dropdown-menu .dropdown-item {
@@ -256,12 +286,21 @@ function format_rm_display($amount) {
 
     .dropdown-menu .dropdown-item:hover {
         background-color: #f5f5f9;
-        color: #696cff; /* Example hover color */
+        color: #696cff;
+        /* Example hover color */
     }
 
-    .dropdown-menu .dropdown-item.text-success:hover { color: #28a745; }
-    .dropdown-menu .dropdown-item.text-danger:hover { color: #dc3545; }
-    .dropdown-menu .dropdown-item.text-warning:hover { color: #ffc107; }
+    .dropdown-menu .dropdown-item.text-success:hover {
+        color: #28a745;
+    }
+
+    .dropdown-menu .dropdown-item.text-danger:hover {
+        color: #dc3545;
+    }
+
+    .dropdown-menu .dropdown-item.text-warning:hover {
+        color: #ffc107;
+    }
 
     .actions-cell {
         display: flex;
@@ -306,35 +345,78 @@ function format_rm_display($amount) {
         text-transform: uppercase;
     }
 
-    .status-paid { background-color: #d4edda; color: #155724; }
-    .status-pending { background-color: #fff3cd; color: #856404; }
-    .status-overdue { background-color: #f8d7da; color: #721c24; }
-    .status-draft { background-color: #e2e3e5; color: #383d41; }
-    .status-approved { background-color: #d4edda; color: #155724; } /* New status */
-    .status-rejected { background-color: #f8d7da; color: #721c24; } /* New status */
-    .status-kiv { background-color: #fff3cd; color: #856404; } /* New status */
+    .status-paid {
+        background-color: #d4edda;
+        color: #155724;
+    }
 
+    .status-pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
 
-    .amount-display { font-weight: 600; color: #28a745; }
-    .doc-number { font-weight: 600; color: #696cff; }
+    .status-overdue {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .status-draft {
+        background-color: #e2e3e5;
+        color: #383d41;
+    }
+
+    .status-approved {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    /* New status */
+    .status-rejected {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    /* New status */
+    .status-kiv {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    /* New status */
+
+    .amount-display {
+        font-weight: 600;
+        color: #28a745;
+    }
+
+    .doc-number {
+        font-weight: 600;
+        color: #696cff;
+    }
 
     .empty-state {
         text-align: center;
         padding: 3rem 2rem;
         color: #6c757d;
     }
-    .empty-state i { font-size: 3rem; color: #d9dee3; margin-bottom: 1rem; }
+
+    .empty-state i {
+        font-size: 3rem;
+        color: #d9dee3;
+        margin-bottom: 1rem;
+    }
 
     /* Custom popup for success/error messages */
     .custom-popup {
         position: fixed;
         top: 20px;
         right: 20px;
-        background-color: #28a745; /* Green for success */
+        background-color: #28a745;
+        /* Green for success */
         color: white;
         padding: 15px 25px;
         border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         z-index: 1100;
         opacity: 0;
         visibility: hidden;
@@ -343,13 +425,84 @@ function format_rm_display($amount) {
         font-size: 1rem;
         font-weight: 500;
     }
+
     .custom-popup.error {
-        background-color: #dc3545; /* Red for error */
+        background-color: #dc3545;
+        /* Red for error */
     }
+
     .custom-popup.show {
         opacity: 1;
         visibility: visible;
         transform: translateY(0);
+    }
+
+    /* Avatar styles for better profile picture display */
+    .user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-weight: 600;
+        font-size: 12px;
+        color: white;
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* Dropdown menu avatar styling */
+    .dropdown-menu .user-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 0.75rem;
+    }
+
+    .dropdown-item .d-flex {
+        align-items: center;
+    }
+
+    .dropdown-item .flex-grow-1 {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+            url('assets/img/backgrounds/inside-background.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        min-height: 100vh;
+    }
+
+    /* Ensure layout wrapper takes full space */
+    .layout-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    /* Content wrapper with transparent background to show body background */
+    .content-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    .page-title {
+        color: white;
+        font-size: 2.0rem;
+        font-weight: bold;
     }
     </style>
 
@@ -362,7 +515,8 @@ function format_rm_display($amount) {
         <i class='bx bx-info-circle me-2'></i> <span id="statusMessage"></span>
     </div>
 
-    <div class="modal fade" id="viewDocumentModal" tabindex="-1" aria-labelledby="viewDocumentModalLabel" aria-hidden="true">
+    <div class="modal fade" id="viewDocumentModal" tabindex="-1" aria-labelledby="viewDocumentModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -403,32 +557,93 @@ function format_rm_display($amount) {
                     </li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Pages</span></li>
-                    <li class="menu-item"><a href="inventory.php" class="menu-link"><i class="menu-icon tf-icons bx bx-card"></i><div>Inventory</div></a></li>
-                    <li class="menu-item"><a href="stock-management.php" class="menu-link"><i class="menu-icon tf-icons bx bx-list-plus"></i><div>Stock Management</div></a></li>
-                    <li class="menu-item"><a href="customer-supplier.php" class="menu-link"><i class="menu-icon tf-icons bx bxs-user-detail"></i><div>Supplier & Customer</div></a></li>
-                    <li class="menu-item active"><a href="order-billing.php" class="menu-link"><i class="menu-icon tf-icons bx bx-cart"></i><div>Order & Billing</div></a></li>
-                    <li class="menu-item"><a href="report.php" class="menu-link"><i class="menu-icon tf-icons bx bxs-report"></i><div>Report</div></a></li>
+                    <li class="menu-item"><a href="inventory.php" class="menu-link"><i
+                                class="menu-icon tf-icons bx bx-package me-2"></i>
+                            <div>Inventory</div>
+                        </a></li>
+                    <li class="menu-item"><a href="stock-management.php" class="menu-link"><i
+                                class="menu-icon tf-icons bx bx-list-plus"></i>
+                            <div>Stock Management</div>
+                        </a></li>
+                    <li class="menu-item"><a href="customer-supplier.php" class="menu-link"><i
+                                class="menu-icon tf-icons bx bxs-user-detail"></i>
+                            <div>Supplier & Customer</div>
+                        </a></li>
+                    <li class="menu-item active"><a href="order-billing.php" class="menu-link"><i
+                                class="menu-icon tf-icons bx bx-receipt"></i>
+                            <div>Order & Billing</div>
+                        </a></li>
+                    <li class="menu-item"><a href="report.php" class="menu-link"><i
+                                class="menu-icon tf-icons bx bxs-report"></i>
+                            <div>Report</div>
+                        </a></li>
 
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">Account</span></li>
-                    <li class="menu-item"><a href="user.php" class="menu-link"><i class="menu-icon tf-icons bx bx-user"></i><div>User Management</div></a></li>
+                    <li class="menu-item"><a href="user.php" class="menu-link"><i
+                                class="menu-icon tf-icons bx bx-user"></i>
+                            <div>User Management</div>
+                        </a></li>
                 </ul>
             </aside>
             <div class="layout-page">
-                <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme" id="layout-navbar">
+                <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
+                    id="layout-navbar">
                     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
-                        <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)"><i class="bx bx-menu bx-sm"></i></a>
+                        <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)"><i
+                                class="bx bx-menu bx-sm"></i></a>
                     </div>
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
-                                <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
-                                    <div class="avatar avatar-online"><img src="assets/img/avatars/1.png" alt class="w-px-40 h-auto rounded-circle" /></div>
+                                <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
+                                    data-bs-toggle="dropdown">
+                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                        <?php
+                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
+                                        if ($navbar_pic): ?>
+                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <?php else: ?>
+                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php endif; ?>
+                                    </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
-                                    <li><a class="dropdown-item" href="<?php echo $profile_link; ?>"><i class="bx bx-user me-2"></i><span class="align-middle">My Profile</span></a></li>
-                                    <li><a class="dropdown-item" href="#"><i class="bx bx-cog me-2"></i><span class="align-middle">Settings</span></a></li>
-                                    <li><div class="dropdown-divider"></div></li>
-                                    <li><a class="dropdown-item" href="logout.php"><i class="bx bx-power-off me-2"></i><span class="align-middle">Log Out</span></a></li>
+                                    <li>
+                                        <a class="dropdown-item" href="#">
+                                            <div class="d-flex">
+                                                <div
+                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <?php if ($navbar_pic): ?>
+                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
+                                                        alt="Profile Picture">
+                                                    <?php else: ?>
+                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <span class="fw-semibold d-block">
+                                                        <?php echo htmlspecialchars($current_user_name); ?>
+                                                    </span>
+                                                    <small class="text-muted">
+                                                        <?php echo htmlspecialchars(ucfirst($current_user_role)); ?>
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <div class="dropdown-divider"></div>
+                                    </li>
+                                    <li><a class="dropdown-item" href="<?php echo $profile_link; ?>"><i
+                                                class="bx bx-user me-2"></i><span class="align-middle">My
+                                                Profile</span></a></li>
+                                    
+                                    <li>
+                                        <div class="dropdown-divider"></div>
+                                    </li>
+                                    <li><a class="dropdown-item" href="logout.php"><i
+                                                class="bx bx-power-off me-2"></i><span class="align-middle">Log
+                                                Out</span></a></li>
                                 </ul>
                             </li>
                         </ul>
@@ -443,7 +658,8 @@ function format_rm_display($amount) {
                         <div class="card">
                             <div class="card-header-flex">
                                 <h5><i class="bx bx-shopping-bag"></i>Customer Purchase Orders</h5>
-                                <a href="create-purchase-order.php" class="action-button btn-success"><i class="bx bx-plus"></i>Create</a>
+                                <a href="create-purchase-order.php" class="action-button btn-success"><i
+                                        class="bx bx-plus"></i>Create</a>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-hover">
@@ -459,14 +675,18 @@ function format_rm_display($amount) {
                                     </thead>
                                     <tbody>
                                         <?php if ($result_purchase_orders && $result_purchase_orders->num_rows > 0): ?>
-                                            <?php while ($row = $result_purchase_orders->fetch_assoc()): ?>
-                                            <tr>
-                                                <td><span class="doc-number"><?= htmlspecialchars($row['doc_number']) ?></span></td>
-                                                <td><?= htmlspecialchars($row['party_name']) ?></td>
-                                                <td><?= date("M d, Y", strtotime($row['doc_date'])) ?></td>
-                                                <td><span class="amount-display"><?= format_rm_display($row['total_due']) ?></span></td>
-                                                <td>
-                                                    <?php
+                                        <?php while ($row = $result_purchase_orders->fetch_assoc()): ?>
+                                        <tr>
+                                            <td><span
+                                                    class="doc-number"><?= htmlspecialchars($row['doc_number']) ?></span>
+                                            </td>
+                                            <td><?= htmlspecialchars($row['party_name']) ?></td>
+                                            <td><?= date("M d, Y", strtotime($row['doc_date'])) ?></td>
+                                            <td><span
+                                                    class="amount-display"><?= format_rm_display($row['total_due']) ?></span>
+                                            </td>
+                                            <td>
+                                                <?php
                                                         $status = strtolower($row['status'] ?? 'pending');
                                                         $badge_class = 'status-pending';
                                                         if ($status == 'paid') $badge_class = 'status-paid';
@@ -476,40 +696,56 @@ function format_rm_display($amount) {
                                                         elseif ($status == 'rejected') $badge_class = 'status-rejected';
                                                         elseif ($status == 'kiv') $badge_class = 'status-kiv';
                                                     ?>
-                                                    <span class="status-badge <?= $badge_class ?>"><?= htmlspecialchars(ucfirst($row['status'])) ?></span>
-                                                </td>
-                                                <td class="actions-cell">
-                                                    <button type="button" class="action-button btn-info view-document-btn"
-                                                        data-bs-toggle="modal" data-bs-target="#viewDocumentModal"
-                                                        data-document-url="view-purchase-order.php?id=<?= $row['id'] ?>&modal=true">
-                                                        <i class="bx bx-show"></i>View
-                                                    </button>
+                                                <span
+                                                    class="status-badge <?= $badge_class ?>"><?= htmlspecialchars(ucfirst($row['status'])) ?></span>
+                                            </td>
+                                            <td class="actions-cell">
+                                                <button type="button" class="action-button btn-info view-document-btn"
+                                                    data-bs-toggle="modal" data-bs-target="#viewDocumentModal"
+                                                    data-document-url="view-purchase-order.php?id=<?= $row['id'] ?>&modal=true">
+                                                    <i class="bx bx-show"></i>View
+                                                </button>
 
-                                                    <div class="dropdown">
-                                                        <button class="action-button btn-warning dropdown-toggle" type="button" id="dropdownEditPurchaseOrder<?= $row['id'] ?>" data-bs-toggle="dropdown" aria-expanded="false">
-                                                            <i class="bx bx-edit"></i>Edit
-                                                        </button>
-                                                        <ul class="dropdown-menu" aria-labelledby="dropdownEditPurchaseOrder<?= $row['id'] ?>">
-                                                            <?php if (strtolower($row['status']) === 'pending' || strtolower($row['status']) === 'draft' || strtolower($row['status']) === 'kiv'): ?>
-                                                                <li><a class="dropdown-item text-success" href="update-purchase-order-status.php?id=<?= $row['id'] ?>&status=approved"><i class="bx bx-check me-2"></i>Approve</a></li>
-                                                                <li><a class="dropdown-item text-danger" href="update-purchase-order-status.php?id=<?= $row['id'] ?>&status=rejected"><i class="bx bx-x me-2"></i>Reject</a></li>
-                                                                <li><a class="dropdown-item text-warning" href="update-purchase-order-status.php?id=<?= $row['id'] ?>&status=kiv"><i class="bx bx-bell me-2"></i>KIV</a></li>
-                                                                <li><hr class="dropdown-divider"></li>
-                                                            <?php endif; ?>
-                                                            <li><a class="dropdown-item text-danger" href="delete-po.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure you want to delete Purchase Order #<?= htmlspecialchars($row['doc_number']) ?>?');"><i class="bx bx-trash me-2"></i>Delete</a></li>
-                                                        </ul>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <?php endwhile; ?>
+                                                <div class="dropdown">
+                                                    <button class="action-button btn-warning dropdown-toggle"
+                                                        type="button" id="dropdownEditPurchaseOrder<?= $row['id'] ?>"
+                                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                                        <i class="bx bx-edit"></i>Edit
+                                                    </button>
+                                                    <ul class="dropdown-menu"
+                                                        aria-labelledby="dropdownEditPurchaseOrder<?= $row['id'] ?>">
+                                                        <?php if (strtolower($row['status']) === 'pending' || strtolower($row['status']) === 'draft' || strtolower($row['status']) === 'kiv'): ?>
+                                                        <li><a class="dropdown-item text-success"
+                                                                href="update-purchase-order-status.php?id=<?= $row['id'] ?>&status=approved"><i
+                                                                    class="bx bx-check me-2"></i>Approve</a></li>
+                                                        <li><a class="dropdown-item text-danger"
+                                                                href="update-purchase-order-status.php?id=<?= $row['id'] ?>&status=rejected"><i
+                                                                    class="bx bx-x me-2"></i>Reject</a></li>
+                                                        <li><a class="dropdown-item text-warning"
+                                                                href="update-purchase-order-status.php?id=<?= $row['id'] ?>&status=kiv"><i
+                                                                    class="bx bx-bell me-2"></i>KIV</a></li>
+                                                        <li>
+                                                            <hr class="dropdown-divider">
+                                                        </li>
+                                                        <?php endif; ?>
+                                                        <li><a class="dropdown-item text-danger"
+                                                                href="delete-po.php?id=<?= $row['id'] ?>"
+                                                                onclick="return confirm('Are you sure you want to delete Purchase Order #<?= htmlspecialchars($row['doc_number']) ?>?');"><i
+                                                                    class="bx bx-trash me-2"></i>Delete</a></li>
+                                                    </ul>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <?php endwhile; ?>
                                         <?php else: ?>
-                                            <tr>
-                                                <td colspan="6" class="empty-state">
-                                                    <i class="bx bx-receipt"></i>
-                                                    <h6>No Purchase Orders Found</h6>
-                                                    <a href="create-purchase-order.php" class="action-button btn-success"><i class="bx bx-plus"></i>Create First PO</a>
-                                                </td>
-                                            </tr>
+                                        <tr>
+                                            <td colspan="6" class="empty-state">
+                                                <i class="bx bx-receipt"></i>
+                                                <h6>No Purchase Orders Found</h6>
+                                                <a href="create-purchase-order.php" class="action-button btn-success"><i
+                                                        class="bx bx-plus"></i>Create First PO</a>
+                                            </td>
+                                        </tr>
                                         <?php endif; ?>
                                     </tbody>
                                 </table>
@@ -519,7 +755,8 @@ function format_rm_display($amount) {
                         <div class="card">
                             <div class="card-header-flex">
                                 <h5><i class="bx bx-file-blank"></i>Supplier Invoices</h5>
-                                <a href="create-invoice.php" class="action-button btn-success"><i class="bx bx-plus"></i>Create</a>
+                                <a href="create-invoice.php" class="action-button btn-success"><i
+                                        class="bx bx-plus"></i>Create</a>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-hover">
@@ -535,14 +772,18 @@ function format_rm_display($amount) {
                                     </thead>
                                     <tbody>
                                         <?php if ($result_supplier_invoices && $result_supplier_invoices->num_rows > 0): ?>
-                                            <?php while ($row = $result_supplier_invoices->fetch_assoc()): ?>
-                                            <tr>
-                                                <td><span class="doc-number"><?= htmlspecialchars($row['doc_number']) ?></span></td>
-                                                <td><?= htmlspecialchars($row['party_name']) ?></td>
-                                                <td><?= date("M d, Y", strtotime($row['doc_date'])) ?></td>
-                                                <td><span class="amount-display"><?= format_rm_display($row['total_due']) ?></span></td>
-                                                <td>
-                                                    <?php
+                                        <?php while ($row = $result_supplier_invoices->fetch_assoc()): ?>
+                                        <tr>
+                                            <td><span
+                                                    class="doc-number"><?= htmlspecialchars($row['doc_number']) ?></span>
+                                            </td>
+                                            <td><?= htmlspecialchars($row['party_name']) ?></td>
+                                            <td><?= date("M d, Y", strtotime($row['doc_date'])) ?></td>
+                                            <td><span
+                                                    class="amount-display"><?= format_rm_display($row['total_due']) ?></span>
+                                            </td>
+                                            <td>
+                                                <?php
                                                         $status = strtolower($row['status'] ?? 'pending');
                                                         $badge_class = 'status-pending';
                                                         if ($status == 'paid') $badge_class = 'status-paid';
@@ -552,40 +793,56 @@ function format_rm_display($amount) {
                                                         elseif ($status == 'rejected') $badge_class = 'status-rejected';
                                                         elseif ($status == 'kiv') $badge_class = 'status-kiv';
                                                     ?>
-                                                    <span class="status-badge <?= $badge_class ?>"><?= htmlspecialchars(ucfirst($row['status'])) ?></span>
-                                                </td>
-                                                <td class="actions-cell">
-                                                    <button type="button" class="action-button btn-info view-document-btn"
-                                                        data-bs-toggle="modal" data-bs-target="#viewDocumentModal"
-                                                        data-document-url="view-supplier-invoice.php?id=<?= $row['id'] ?>&modal=true">
-                                                        <i class="bx bx-show"></i>View
-                                                    </button>
+                                                <span
+                                                    class="status-badge <?= $badge_class ?>"><?= htmlspecialchars(ucfirst($row['status'])) ?></span>
+                                            </td>
+                                            <td class="actions-cell">
+                                                <button type="button" class="action-button btn-info view-document-btn"
+                                                    data-bs-toggle="modal" data-bs-target="#viewDocumentModal"
+                                                    data-document-url="view-supplier-invoice.php?id=<?= $row['id'] ?>&modal=true">
+                                                    <i class="bx bx-show"></i>View
+                                                </button>
 
-                                                    <div class="dropdown">
-                                                        <button class="action-button btn-warning dropdown-toggle" type="button" id="dropdownEditSupplierInvoice<?= $row['id'] ?>" data-bs-toggle="dropdown" aria-expanded="false">
-                                                            <i class="bx bx-edit"></i>Edit
-                                                        </button>
-                                                        <ul class="dropdown-menu" aria-labelledby="dropdownEditSupplierInvoice<?= $row['id'] ?>">
-                                                            <?php if (strtolower($row['status']) === 'pending' || strtolower($row['status']) === 'draft' || strtolower($row['status']) === 'kiv'): ?>
-                                                                <li><a class="dropdown-item text-success" href="update-supplier-invoice-status.php?id=<?= $row['id'] ?>&status=approved"><i class="bx bx-check me-2"></i>Approve</a></li>
-                                                                <li><a class="dropdown-item text-danger" href="update-supplier-invoice-status.php?id=<?= $row['id'] ?>&status=rejected"><i class="bx bx-x me-2"></i>Reject</a></li>
-                                                                <li><a class="dropdown-item text-warning" href="update-supplier-invoice-status.php?id=<?= $row['id'] ?>&status=kiv"><i class="bx bx-bell me-2"></i>KIV</a></li>
-                                                                <li><hr class="dropdown-divider"></li>
-                                                            <?php endif; ?>
-                                                            <li><a class="dropdown-item text-danger" href="delete-invoice.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure you want to delete Supplier Invoice #<?= htmlspecialchars($row['doc_number']) ?>?');"><i class="bx bx-trash me-2"></i>Delete</a></li>
-                                                        </ul>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <?php endwhile; ?>
+                                                <div class="dropdown">
+                                                    <button class="action-button btn-warning dropdown-toggle"
+                                                        type="button" id="dropdownEditSupplierInvoice<?= $row['id'] ?>"
+                                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                                        <i class="bx bx-edit"></i>Edit
+                                                    </button>
+                                                    <ul class="dropdown-menu"
+                                                        aria-labelledby="dropdownEditSupplierInvoice<?= $row['id'] ?>">
+                                                        <?php if (strtolower($row['status']) === 'pending' || strtolower($row['status']) === 'draft' || strtolower($row['status']) === 'kiv'): ?>
+                                                        <li><a class="dropdown-item text-success"
+                                                                href="update-supplier-invoice-status.php?id=<?= $row['id'] ?>&status=approved"><i
+                                                                    class="bx bx-check me-2"></i>Approve</a></li>
+                                                        <li><a class="dropdown-item text-danger"
+                                                                href="update-supplier-invoice-status.php?id=<?= $row['id'] ?>&status=rejected"><i
+                                                                    class="bx bx-x me-2"></i>Reject</a></li>
+                                                        <li><a class="dropdown-item text-warning"
+                                                                href="update-supplier-invoice-status.php?id=<?= $row['id'] ?>&status=kiv"><i
+                                                                    class="bx bx-bell me-2"></i>KIV</a></li>
+                                                        <li>
+                                                            <hr class="dropdown-divider">
+                                                        </li>
+                                                        <?php endif; ?>
+                                                        <li><a class="dropdown-item text-danger"
+                                                                href="delete-invoice.php?id=<?= $row['id'] ?>"
+                                                                onclick="return confirm('Are you sure you want to delete Supplier Invoice #<?= htmlspecialchars($row['doc_number']) ?>?');"><i
+                                                                    class="bx bx-trash me-2"></i>Delete</a></li>
+                                                    </ul>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <?php endwhile; ?>
                                         <?php else: ?>
-                                            <tr>
-                                                <td colspan="6" class="empty-state">
-                                                    <i class="bx bx-file-blank"></i>
-                                                    <h6>No Supplier Invoices Found</h6>
-                                                    <a href="create-invoice.php" class="action-button btn-success"><i class="bx bx-plus"></i>Create First Bill</a>
-                                                </td>
-                                            </tr>
+                                        <tr>
+                                            <td colspan="6" class="empty-state">
+                                                <i class="bx bx-file-blank"></i>
+                                                <h6>No Supplier Invoices Found</h6>
+                                                <a href="create-invoice.php" class="action-button btn-success"><i
+                                                        class="bx bx-plus"></i>Create First Bill</a>
+                                            </td>
+                                        </tr>
                                         <?php endif; ?>
                                     </tbody>
                                 </table>
@@ -593,8 +850,11 @@ function format_rm_display($amount) {
                         </div>
                     </div>
                     <footer class="content-footer footer bg-footer-theme">
-                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
-                            <div class="mb-2 mb-md-0">© <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.</div>
+                        <div
+                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                            <div class="mb-2 mb-md-0">© <script>
+                                document.write(new Date().getFullYear());
+                                </script> Inventomo. All rights reserved.</div>
                         </div>
                     </footer>
                     <div class="content-backdrop fade"></div>
@@ -611,66 +871,70 @@ function format_rm_display($amount) {
     <script src="assets/js/main.js"></script>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const statusPopup = document.getElementById('statusPopup');
-            const statusMessageSpan = document.getElementById('statusMessage');
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusPopup = document.getElementById('statusPopup');
+        const statusMessageSpan = document.getElementById('statusMessage');
 
-            // Check for PHP-generated success message
-            <?php if (!empty($success_message)): ?>
-                statusMessageSpan.textContent = '<?php echo $success_message; ?>';
-                statusPopup.classList.add('show');
-                statusPopup.classList.remove('error'); // Ensure it's not red
-                statusPopup.querySelector('i').className = 'bx bx-check-circle me-2'; // Check icon
-                setTimeout(() => {
-                    statusPopup.classList.remove('show');
-                }, 5000); // Popup disappears after 5 seconds
-            <?php endif; ?>
+        // Check for PHP-generated success message
+        <?php if (!empty($success_message)): ?>
+        statusMessageSpan.textContent = '<?php echo $success_message; ?>';
+        statusPopup.classList.add('show');
+        statusPopup.classList.remove('error'); // Ensure it's not red
+        statusPopup.querySelector('i').className = 'bx bx-check-circle me-2'; // Check icon
+        setTimeout(() => {
+            statusPopup.classList.remove('show');
+        }, 5000); // Popup disappears after 5 seconds
+        <?php endif; ?>
 
-            // Check for PHP-generated error message
-            <?php if (!empty($error_message)): ?>
-                statusMessageSpan.textContent = '<?php echo $error_message; ?>';
-                statusPopup.classList.add('show', 'error'); // Add error class for red background
-                statusPopup.querySelector('i').className = 'bx bx-error-circle me-2'; // Error icon
-                setTimeout(() => {
-                    statusPopup.classList.remove('show');
-                }, 5000); // Popup disappears after 5 seconds
-            <?php endif; ?>
+        // Check for PHP-generated error message
+        <?php if (!empty($error_message)): ?>
+        statusMessageSpan.textContent = '<?php echo $error_message; ?>';
+        statusPopup.classList.add('show', 'error'); // Add error class for red background
+        statusPopup.querySelector('i').className = 'bx bx-error-circle me-2'; // Error icon
+        setTimeout(() => {
+            statusPopup.classList.remove('show');
+        }, 5000); // Popup disappears after 5 seconds
+        <?php endif; ?>
 
-            // JavaScript for loading content into the modal
-            const viewDocumentModal = document.getElementById('viewDocumentModal');
-            viewDocumentModal.addEventListener('show.bs.modal', function (event) {
-                const button = event.relatedTarget; // Button that triggered the modal
-                const documentUrl = button.getAttribute('data-document-url'); // Extract info from data-* attributes
-                const modalBody = viewDocumentModal.querySelector('#documentModalBody');
+        // JavaScript for loading content into the modal
+        const viewDocumentModal = document.getElementById('viewDocumentModal');
+        viewDocumentModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget; // Button that triggered the modal
+            const documentUrl = button.getAttribute(
+            'data-document-url'); // Extract info from data-* attributes
+            const modalBody = viewDocumentModal.querySelector('#documentModalBody');
 
-                // Clear previous content and show a loading message
-                modalBody.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading document...</p></div>';
+            // Clear previous content and show a loading message
+            modalBody.innerHTML =
+                '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading document...</p></div>';
 
-                // Fetch content from the document URL
-                fetch(documentUrl)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response.text();
-                    })
-                    .then(html => {
-                        modalBody.innerHTML = html; // Inject the fetched content into the modal body
-                    })
-                    .catch(error => {
-                        console.error('Error loading document:', error);
-                        modalBody.innerHTML = '<p class="text-danger">Failed to load document. Please try again.</p>';
-                    });
-            });
-
-            // Optional: Clear modal content when hidden to ensure fresh load next time
-            viewDocumentModal.addEventListener('hidden.bs.modal', function () {
-                const modalBody = viewDocumentModal.querySelector('#documentModalBody');
-                modalBody.innerHTML = ''; // Clear content when modal is closed
-            });
+            // Fetch content from the document URL
+            fetch(documentUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.text();
+                })
+                .then(html => {
+                    modalBody.innerHTML = html; // Inject the fetched content into the modal body
+                })
+                .catch(error => {
+                    console.error('Error loading document:', error);
+                    modalBody.innerHTML =
+                        '<p class="text-danger">Failed to load document. Please try again.</p>';
+                });
         });
+
+        // Optional: Clear modal content when hidden to ensure fresh load next time
+        viewDocumentModal.addEventListener('hidden.bs.modal', function() {
+            const modalBody = viewDocumentModal.querySelector('#documentModalBody');
+            modalBody.innerHTML = ''; // Clear content when modal is closed
+        });
+    });
     </script>
 </body>
+
 </html>
 <?php
 $conn->close();

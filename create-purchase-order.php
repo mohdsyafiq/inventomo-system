@@ -2,8 +2,6 @@
 // Define the active page for the sidebar
 $active_page = 'create_po'; 
 
-// create-purchase-order.php (COMPLETE & FINAL)
-
 // Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -55,7 +53,6 @@ if(!$product_result) {
         $products[] = $row;
     }
 }
-
 
 // --- HANDLE FORM SUBMISSION ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -111,143 +108,404 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
+<html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Purchase Order - Inventomo</title>
     <meta name="description" content="Create a new Purchase Order" />
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/inventomo.ico" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
-    <link rel="stylesheet" href="assets/vendor/css/core.css" class="template-customizer-core-css" />
-    <link rel="stylesheet" href="assets/vendor/css/theme-default.css" class="template-customizer-theme-css" />
-    <link rel="stylesheet" href="assets/css/demo.css" />
-    <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <script src="assets/vendor/js/helpers.js"></script>
-    <script src="assets/js/config.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .form-content {
+            padding: 30px;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #2c3e50;
+        }
+
+        .required {
+            color: #e74c3c;
+        }
+
+        .form-control {
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .items-table th {
+            background: #34495e;
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .items-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .items-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .add-item-btn {
+            margin-top: 15px;
+        }
+
+        .summary-section {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 25px;
+            margin-top: 25px;
+        }
+
+        .notes-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .totals-section {
+            background: #2c3e50;
+            color: white;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 5px 0;
+        }
+
+        .total-final {
+            border-top: 2px solid rgba(255, 255, 255, 0.3);
+            margin-top: 15px;
+            padding-top: 15px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .summary-section {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .items-table {
+                font-size: 12px;
+            }
+
+            .container {
+                margin: 10px;
+                border-radius: 8px;
+            }
+
+            body {
+                padding: 10px;
+            }
+        }
+
+    
+      body {
+    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+                url('assets/img/backgrounds/inside-background.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+}
+
+/* Ensure layout wrapper takes full space */
+.layout-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
+
+/* Content wrapper with transparent background to show body background */
+.content-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
+
+    </style>
 </head>
-
 <body>
-    <div class="layout-wrapper layout-content-navbar">
-        <div class="layout-container">
-            <div class="layout-page">
-                <div class="content-wrapper">
-                    <form id="poForm" method="POST" action="create-purchase-order.php">
-                        <div class="container-xxl flex-grow-1 container-p-y">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h4 class="fw-bold py-3 mb-0"><span class="text-muted fw-light">Orders /</span> Create Purchase Order</h4>
-                                <div class="action-buttons">
-                                    <a href="order-billing.php" class="btn btn-secondary"><i class="bx bx-x me-1"></i>Cancel</a>
-                                    <button type="submit" class="btn btn-primary"><i class="bx bx-save me-1"></i>Save PO</button>
-                                </div>
-                            </div>
-
-                            <?php if (!empty($error_message)): ?>
-                            <div class="alert alert-danger" role="alert"><i class="bx bx-error-circle me-2"></i><?php echo $error_message; ?></div>
-                            <?php endif; ?>
-
-                            <div class="card mb-4">
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="supplier_id" class="form-label">Supplier <span class="text-danger">*</span></label>
-                                            <select id="supplier_id" name="supplier_id" class="form-select" required>
-                                                <option value="" disabled selected>Select a supplier...</option>
-                                                <?php foreach ($suppliers as $supplier): ?>
-                                                    <option value="<?php echo $supplier['Id']; ?>">
-                                                        <?php echo htmlspecialchars($supplier['companyName'] ?: $supplier['firstName'] . ' ' . $supplier['lastName']); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3 mb-3">
-                                            <label for="issue_date" class="form-label">Issue Date</label>
-                                            <input type="date" id="issue_date" name="issue_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
-                                        </div>
-                                        <div class="col-md-3 mb-3">
-                                            <label for="due_date" class="form-label">Expected Delivery</label>
-                                            <input type="date" id="due_date" name="due_date" class="form-control" value="<?php echo date('Y-m-d', strtotime('+7 days')); ?>">
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                         <div class="col-md-6 mb-3">
-                                            <label for="po_number" class="form-label">PO Number</label>
-                                            <input type="text" id="po_number" name="po_number" class="form-control" value="PO-<?php echo date('Ymd-His'); ?>" required>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="card">
-                                <h5 class="card-header">Items</h5>
-                                <div class="table-responsive text-nowrap">
-                                    <table class="table">
-                                        <thead>
-                                            <tr>
-                                                <th>Item</th>
-                                                <th style="width: 15%;">Qty</th>
-                                                <th style="width: 15%;">Cost Price</th>
-                                                <th style="width: 15%;">Amount</th>
-                                                <th style="width: 5%;"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="items-table-body">
-                                            </tbody>
-                                    </table>
-                                </div>
-                                <div class="card-body">
-                                    <button type="button" class="btn btn-primary" onclick="addItemRow()">+ Add Item</button>
-                                </div>
-                            </div>
-
-                            <div class="row mt-4">
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <label for="notes" class="form-label">Notes</label>
-                                            <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Enter any notes for the supplier..."></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between mb-2">
-                                                <span>Subtotal</span>
-                                                <span id="subtotal-text">RM 0.00</span>
-                                            </div>
-                                            <div class="d-flex justify-content-between mb-2">
-                                                <span>SST (6%)</span>
-                                                <span id="sst-text">RM 0.00</span>
-                                            </div>
-                                            <hr>
-                                            <div class="d-flex justify-content-between fw-bold h5">
-                                                <span>Total Due</span>
-                                                <span id="total-due-text">RM 0.00</span>
-                                            </div>
-                                            <input type="hidden" name="total_due" id="total_due_input" value="0">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-                    </form>
-                </div>
-                </div>
+    <div class="container">
+        <div class="header">
+            <h1>Create Purchase Order</h1>
+            <div class="header-actions">
+                <a href="order-billing.php" class="btn btn-secondary">✕ Cancel</a>
+                <button type="submit" class="btn btn-primary" form="poForm">💾 Save PO</button>
             </div>
+        </div>
+
+        <div class="form-content">
+            <?php if (!empty($error_message)): ?>
+            <div class="alert alert-danger" role="alert">
+                <span>⚠️</span>
+                <?php echo $error_message; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($success_message)): ?>
+            <div class="alert alert-success" role="alert">
+                <span>✅</span>
+                <?php echo $success_message; ?>
+            </div>
+            <?php endif; ?>
+
+            <form id="poForm" method="POST" action="create-purchase-order.php">
+                <!-- Supplier & Basic Info Section -->
+                <div class="form-section">
+                    <h2 class="section-title">Order Information</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Supplier <span class="required">*</span></label>
+                            <select id="supplier_id" name="supplier_id" class="form-control" required>
+                                <option value="" disabled selected>Select a supplier...</option>
+                                <?php foreach ($suppliers as $supplier): ?>
+                                    <option value="<?php echo $supplier['Id']; ?>">
+                                        <?php echo htmlspecialchars($supplier['companyName'] ?: $supplier['firstName'] . ' ' . $supplier['lastName']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">PO Number</label>
+                            <input type="text" id="po_number" name="po_number" class="form-control" value="PO-<?php echo date('Ymd-His'); ?>" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Issue Date</label>
+                            <input type="date" id="issue_date" name="issue_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Expected Delivery</label>
+                            <input type="date" id="due_date" name="due_date" class="form-control" value="<?php echo date('Y-m-d', strtotime('+7 days')); ?>">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items Section -->
+                <div class="form-section">
+                    <h2 class="section-title">Items</h2>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th style="width: 15%;">Qty</th>
+                                <th style="width: 15%;">Cost Price</th>
+                                <th style="width: 15%;">Amount</th>
+                                <th style="width: 5%;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-table-body">
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-success add-item-btn" onclick="addItemRow()">+ Add Item</button>
+                </div>
+
+                <!-- Summary Section -->
+                <div class="summary-section">
+                    <div class="notes-section">
+                        <h3 class="section-title">Notes</h3>
+                        <textarea class="form-control" id="notes" name="notes" rows="6" placeholder="Enter any notes for the supplier..."></textarea>
+                    </div>
+                    <div class="totals-section">
+                        <h3 style="margin-bottom: 20px; color: white;">Order Summary</h3>
+                        <div class="total-row">
+                            <span>Subtotal</span>
+                            <span id="subtotal-text">RM 0.00</span>
+                        </div>
+                        <div class="total-row">
+                            <span>SST (6%)</span>
+                            <span id="sst-text">RM 0.00</span>
+                        </div>
+                        <div class="total-row total-final">
+                            <span>Total Due</span>
+                            <span id="total-due-text">RM 0.00</span>
+                        </div>
+                        <input type="hidden" name="total_due" id="total_due_input" value="0">
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <script src="assets/vendor/libs/jquery/jquery.js"></script>
-    <script src="assets/vendor/libs/popper/popper.js"></script>
-    <script src="assets/vendor/js/bootstrap.js"></script>
-    <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-    <script src="assets/vendor/js/menu.js"></script>
-    <script src="assets/js/main.js"></script>
-    
     <script>
         const products = <?php echo json_encode($products); ?>;
 
@@ -261,18 +519,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         function addItemRow() {
             const tableBody = document.getElementById('items-table-body');
-            // Get the current row count to use as the index for the new row's form fields.
             const newIndex = tableBody.rows.length;
             
             const newRow = document.createElement('tr');
-
-            // Use the 'newIndex' to group the fields for this row together (e.g., items[0][product_id], items[0][quantity], etc.)
             newRow.innerHTML = `
-                <td><select name="items[${newIndex}][product_id]" class="form-select item-select" required>${buildProductOptions()}</select></td>
+                <td><select name="items[${newIndex}][product_id]" class="form-control item-select" required>${buildProductOptions()}</select></td>
                 <td><input type="number" name="items[${newIndex}][quantity]" class="form-control item-qty" value="1" min="1" required></td>
                 <td><input type="number" name="items[${newIndex}][rate]" class="form-control item-rate" step="0.01" min="0" required></td>
-                <td class="item-amount text-end">RM 0.00</td>
-                <td><button type="button" class="btn btn-sm btn-danger" onclick="removeItemRow(this)">X</button></td>
+                <td class="item-amount" style="text-align: right;">RM 0.00</td>
+                <td><button type="button" class="btn btn-danger" onclick="removeItemRow(this)">×</button></td>
             `;
 
             tableBody.appendChild(newRow);
@@ -280,8 +535,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         function removeItemRow(button) {
-            button.closest('tr').remove();
-            updateTotals();
+            const tableBody = document.getElementById('items-table-body');
+            if (tableBody.rows.length > 1) {
+                button.closest('tr').remove();
+                updateTotals();
+            }
         }
         
         function attachRowListeners(row) {
@@ -325,5 +583,5 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Add one empty row to start with
         document.addEventListener('DOMContentLoaded', addItemRow);
     </script>
-    </body>
+</body>
 </html>

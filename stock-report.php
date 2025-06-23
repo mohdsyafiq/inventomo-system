@@ -22,68 +22,60 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Initialize user variables with proper defaults
+// Initialize user variables
 $current_user_id = $_SESSION['user_id'];
 $current_user_name = "User";
 $current_user_role = "user";
-$current_user_avatar = "default.jpg";
-$avatar_path = "uploads/photos/"; // Path where profile pictures are stored
-
-// Function to get user avatar URL
-function getUserAvatarUrl($avatar_filename, $avatar_path) {
-    if (empty($avatar_filename) || $avatar_filename == 'default.jpg') {
-        return null; // Will use initials instead
-    }
-    
-    if (file_exists($avatar_path . $avatar_filename)) {
-        return $avatar_path . $avatar_filename;
-    }
-    
-    return null; // Will use initials instead
-}
-
-// Fetch current user details from database with prepared statement
-$user_query = "SELECT * FROM user_profiles WHERE Id = ? LIMIT 1";
-$stmt = $conn->prepare($user_query);
-
-if ($stmt) {
-    $stmt->bind_param("s", $current_user_id);
-    $stmt->execute();
-    $user_result = $stmt->get_result();
-    
-    if ($user_result && $user_result->num_rows > 0) {
-        $user_data = $user_result->fetch_assoc();
-        
-        // Set user information
-        $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
-        $current_user_role = $user_data['position'];
-        
-        // Handle profile picture path correctly
-        if (!empty($user_data['profile_picture']) && $user_data['profile_picture'] != 'default.jpg') {
-            // Check if the file exists in uploads/photos/
-            if (file_exists($avatar_path . $user_data['profile_picture'])) {
-                $current_user_avatar = $user_data['profile_picture'];
-            } else {
-                $current_user_avatar = 'default.jpg';
-            }
-        } else {
-            $current_user_avatar = 'default.jpg';
-        }
-    }
-    $stmt->close();
-}
-
-$user_avatar_url = getUserAvatarUrl($current_user_avatar, $avatar_path);
+$current_user_avatar = "1.png";
 
 // Helper function to get avatar background color based on position
 function getAvatarColor($position) {
     switch (strtolower($position)) {
-        case 'admin': return 'primary';
-        case 'super-admin': return 'danger';
-        case 'manager': return 'success';
-        case 'supervisor': return 'warning';
-        case 'staff': return 'info';
-        default: return 'secondary';
+        case 'admin':
+            return 'primary';
+        case 'super-admin':
+            return 'danger';
+        case 'moderator':
+            return 'warning';
+        case 'manager':
+            return 'success';
+        case 'staff':
+            return 'info';
+        default:
+            return 'secondary';
+    }
+}
+
+// Helper function to get profile picture path
+function getProfilePicture($profile_picture, $full_name) {
+    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
+        $photo_path = 'uploads/photos/' . $profile_picture;
+        if (file_exists($photo_path)) {
+            return $photo_path;
+        }
+    }
+    // Return null to show initials instead
+    return null;
+}
+
+// Session check and user profile link logic
+if (isset($_SESSION['user_id']) && $conn) {
+    $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
+    
+    // Fetch current user details from database
+    $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
+    $user_result = mysqli_query($conn, $user_query);
+    
+    if ($user_result && mysqli_num_rows($user_result) > 0) {
+        $user_data = mysqli_fetch_assoc($user_result);
+        
+        // Set user information
+        $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
+        $current_user_role = $user_data['position'];
+        $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
+        
+        // Profile link goes to user-profile.php with their ID
+        $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
     }
 }
 
@@ -292,39 +284,70 @@ $conn->close();
     <script src="assets/js/config.js"></script>
     
     <style>
+        /* Profile Avatar Styles - Consistent with other pages */
         .user-avatar {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            display: flex;
+            overflow: hidden;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
+            margin-right: 0.5rem;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 12px;
             color: white;
+            flex-shrink: 0;
             position: relative;
         }
+
         .user-avatar img {
             width: 100%;
             height: 100%;
-            border-radius: 50%;
             object-fit: cover;
         }
-        .user-avatar::after {
-            content: '';
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            width: 12px;
-            height: 12px;
-            background-color: #10b981;
-            border: 2px solid white;
-            border-radius: 50%;
+
+        /* Dropdown menu avatar styling */
+        .dropdown-menu .user-avatar {
+            width: 40px;
+            height: 40px;
+            margin-right: 0.75rem;
         }
+
+        .dropdown-item .d-flex {
+            align-items: center;
+        }
+
+        .dropdown-item .flex-grow-1 {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Enhanced page styling */
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #566a7f;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
         .stats-card {
             border-left: 4px solid #28c76f;
             transition: all 0.3s ease;
             border-radius: 8px;
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
         }
         .stats-card:hover {
             transform: translateY(-2px);
@@ -336,20 +359,26 @@ $conn->close();
         .stats-card.neutral {
             border-left-color: #ff9f43;
         }
+        
         .chart-container {
             position: relative;
             height: 400px;
             margin: 20px 0;
         }
+        
         .filter-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
+            margin-bottom: 1.5rem;
         }
         .filter-card .card-header {
             background: transparent;
             border-bottom: 1px solid rgba(255,255,255,0.1);
             color: white;
+            font-weight: 600;
         }
         .form-select, .form-label {
             color: #333;
@@ -362,31 +391,135 @@ $conn->close();
             color: white;
             font-weight: 500;
         }
+        
         .report-header {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             color: white;
             border-radius: 10px;
             padding: 30px;
             margin-bottom: 30px;
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
         }
+        
         .export-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
             color: white;
             transition: all 0.3s ease;
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
         }
         .export-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
             color: white;
         }
-        .profile-link {
+        
+        .card-enhanced {
+            border-radius: 0.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
+            border: none;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .card-header-enhanced {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #d9dee3;
+            padding: 1.5rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #566a7f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
             text-decoration: none;
-            color: inherit;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: 1px solid transparent;
         }
-        .profile-link:hover {
-            color: inherit;
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: #d9dee3;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .content-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .report-header {
+                padding: 20px;
+            }
+
+            .chart-container {
+                height: 300px;
+            }
+        }
+
+         body {
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+            url('assets/img/backgrounds/inside-background.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        min-height: 100vh;
+    }
+
+    /* Ensure layout wrapper takes full space */
+    .layout-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    /* Content wrapper with transparent background to show body background */
+    .content-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    .page-title {
+        color: white;
+        font-size: 2.0rem;
+        font-weight: bold;
+    }
     </style>
 </head>
 
@@ -423,7 +556,7 @@ $conn->close();
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -456,7 +589,7 @@ $conn->close();
 
                     <li class="menu-item">
                         <a href="user.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-user"></i>
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
                             <div data-i18n="Analytics">User Management</div>
                         </a>
                     </li>
@@ -482,8 +615,10 @@ $conn->close();
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
                                     <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                        <?php if ($user_avatar_url): ?>
-                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="Profile Picture">
+                                        <?php
+                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
+                                        if ($navbar_pic): ?>
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
                                             <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
@@ -491,29 +626,50 @@ $conn->close();
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item profile-link" href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>">
+                                        <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="flex-shrink-0 me-3">
-                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                                        <?php if ($user_avatar_url): ?>
-                                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="Profile Picture">
-                                                        <?php else: ?>
-                                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
-                                                        <?php endif; ?>
-                                                    </div>
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <?php if ($navbar_pic): ?>
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <?php else: ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
-                                                    <span class="fw-semibold d-block"><?php echo htmlspecialchars($current_user_name); ?></span>
-                                                    <small class="text-muted"><?php echo htmlspecialchars(ucfirst($current_user_role)); ?></small>
+                                                    <span class="fw-semibold d-block">
+                                                        <?php echo htmlspecialchars($current_user_name); ?>
+                                                    </span>
+                                                    <small class="text-muted">
+                                                        <?php echo htmlspecialchars(ucfirst($current_user_role)); ?>
+                                                    </small>
                                                 </div>
                                             </div>
                                         </a>
                                     </li>
-                                    <li><div class="dropdown-divider"></div></li>
-                                    <li><a class="dropdown-item" href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>"><i class="bx bx-user me-2"></i> My Profile</a></li>
-                                    <li><a class="dropdown-item" href="user-settings.php"><i class="bx bx-cog me-2"></i> Settings</a></li>
-                                    <li><div class="dropdown-divider"></div></li>
-                                    <li><a class="dropdown-item" href="logout.php"><i class="bx bx-power-off me-2"></i> Log Out</a></li>
+                                    <li>
+                                        <div class="dropdown-divider"></div>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="<?php echo isset($profile_link) ? $profile_link : 'user-profile.php'; ?>">
+                                            <i class="bx bx-user me-2"></i>
+                                            <span class="align-middle">My Profile</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#">
+                                            <i class="bx bx-cog me-2"></i>
+                                            <span class="align-middle">Settings</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <div class="dropdown-divider"></div>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="logout.php">
+                                            <i class="bx bx-power-off me-2"></i>
+                                            <span class="align-middle">Log Out</span>
+                                        </a>
+                                    </li>
                                 </ul>
                             </li>
                         </ul>
@@ -522,28 +678,46 @@ $conn->close();
                 
                 <div class="content-wrapper">
                     <div class="container-xxl flex-grow-1 container-p-y">
+                        <!-- Page Header -->
+                        <div class="content-header">
+                            <h4 class="page-title">
+                                <i class="bx bx-bar-chart-alt"></i>Stock Movement Reports
+                                <span class="breadcrumb-text">/ Analytics Dashboard</span>
+                            </h4>
+                            <div class="action-buttons">
+                                <button type="button" class="action-btn btn btn-outline-secondary" onclick="location.reload()">
+                                    <i class="bx bx-refresh"></i>Refresh Data
+                                </button>
+                                <a href="stock-management.php" class="action-btn btn btn-outline-primary">
+                                    <i class="bx bx-arrow-back"></i>Back to Stock Management
+                                </a>
+                            </div>
+                        </div>
+
                         <!-- Report Header -->
                         <div class="report-header">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h2 class="mb-2">Stock Movement Report</h2>
-                                    <p class="mb-0">Comprehensive analysis of stock in and out transactions</p>
+                                    <h2 class="mb-2">
+                                        <i class="bx bx-trending-up me-2"></i>Stock Movement Report
+                                    </h2>
+                                    <p class="mb-0">Comprehensive analysis of stock in and out transactions for informed decision making</p>
                                 </div>
                                 <div class="d-flex gap-2">
                                     <button type="button" class="btn export-btn" onclick="exportChart()">
                                         <i class="bx bx-download me-1"></i> Export Chart
                                     </button>
                                     <button type="button" class="btn btn-outline-light" onclick="window.print()">
-                                        <i class="bx bx-printer me-1"></i> Print
+                                        <i class="bx bx-printer me-1"></i> Print Report
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Filter Card -->
-                        <div class="card filter-card mb-4">
+                        <div class="card filter-card">
                             <h5 class="card-header">
-                                <i class="bx bx-filter-alt me-2"></i>Report Filters
+                                <i class="bx bx-filter-alt me-2"></i>Report Filters & Configuration
                             </h5>
                             <div class="card-body">
                                 <form method="GET" action="stock-report.php" class="row g-3 align-items-end">
@@ -574,9 +748,9 @@ $conn->close();
                                         <button type="submit" class="btn btn-light me-2">
                                             <i class="bx bx-search-alt me-1"></i>Generate Report
                                         </button>
-                                        <a href="stock-management.php" class="btn btn-outline-light">
-                                            <i class="bx bx-arrow-back me-1"></i>Back
-                                        </a>
+                                        <button type="button" class="btn btn-outline-light" onclick="resetFilters()">
+                                            <i class="bx bx-refresh me-1"></i>Reset
+                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -585,12 +759,13 @@ $conn->close();
                         <!-- Statistics Cards -->
                         <div class="row mb-4">
                             <div class="col-md-3">
-                                <div class="card stats-card">
+                                <div class="card stats-card card-enhanced">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <h6 class="card-title text-muted mb-1">Total Stock In</h6>
                                                 <h3 class="text-success mb-0"><?php echo number_format($total_stock_in); ?></h3>
+                                                <small class="text-muted">Units added</small>
                                             </div>
                                             <div class="avatar">
                                                 <span class="avatar-initial rounded bg-label-success">
@@ -602,12 +777,13 @@ $conn->close();
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="card stats-card negative">
+                                <div class="card stats-card negative card-enhanced">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <h6 class="card-title text-muted mb-1">Total Stock Out</h6>
                                                 <h3 class="text-danger mb-0"><?php echo number_format($total_stock_out); ?></h3>
+                                                <small class="text-muted">Units removed</small>
                                             </div>
                                             <div class="avatar">
                                                 <span class="avatar-initial rounded bg-label-danger">
@@ -619,7 +795,7 @@ $conn->close();
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="card stats-card <?php echo $net_change >= 0 ? '' : 'negative'; ?>">
+                                <div class="card stats-card <?php echo $net_change >= 0 ? '' : 'negative'; ?> card-enhanced">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
@@ -627,6 +803,7 @@ $conn->close();
                                                 <h3 class="<?php echo $net_change >= 0 ? 'text-success' : 'text-danger'; ?> mb-0">
                                                     <?php echo ($net_change >= 0 ? '+' : '') . number_format($net_change); ?>
                                                 </h3>
+                                                <small class="text-muted">Overall balance</small>
                                             </div>
                                             <div class="avatar">
                                                 <span class="avatar-initial rounded bg-label-<?php echo $net_change >= 0 ? 'success' : 'danger'; ?>">
@@ -638,12 +815,13 @@ $conn->close();
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <div class="card stats-card neutral">
+                                <div class="card stats-card neutral card-enhanced">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <h6 class="card-title text-muted mb-1">Active Days</h6>
                                                 <h3 class="text-warning mb-0"><?php echo number_format($active_days); ?></h3>
+                                                <small class="text-muted">Days with activity</small>
                                             </div>
                                             <div class="avatar">
                                                 <span class="avatar-initial rounded bg-label-warning">
@@ -657,10 +835,12 @@ $conn->close();
                         </div>
 
                         <!-- Chart Card -->
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="card card-enhanced">
+                            <div class="card-header-enhanced">
                                 <div>
-                                    <h5 class="mb-1">Daily Stock Movement - <?php echo htmlspecialchars($months_list[$selected_month_filter] ?? date('F Y')); ?></h5>
+                                    <h5 class="mb-1">
+                                        <i class="bx bx-line-chart me-2"></i>Daily Stock Movement - <?php echo htmlspecialchars($months_list[$selected_month_filter] ?? date('F Y')); ?>
+                                    </h5>
                                     <small class="text-muted">
                                         <?php echo htmlspecialchars($selected_product_name); ?> | 
                                         <?php echo htmlspecialchars($start_date_obj->format('M d, Y')); ?> to 
@@ -669,7 +849,7 @@ $conn->close();
                                 </div>
                                 <div class="dropdown">
                                     <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                        <i class="bx bx-dots-vertical-rounded"></i>
+                                        <i class="bx bx-cog"></i>Chart Options
                                     </button>
                                     <ul class="dropdown-menu">
                                         <li><a class="dropdown-item" href="javascript:void(0)" onclick="changeChartType('bar')">
@@ -728,7 +908,7 @@ $conn->close();
                         <?php if ($active_days > 0): ?>
                         <div class="row mt-4">
                             <div class="col-md-6">
-                                <div class="card">
+                                <div class="card card-enhanced">
                                     <div class="card-header">
                                         <h6 class="mb-0"><i class="bx bx-trending-up me-2"></i>Daily Averages</h6>
                                     </div>
@@ -751,7 +931,7 @@ $conn->close();
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="card">
+                                <div class="card card-enhanced">
                                     <div class="card-header">
                                         <h6 class="mb-0"><i class="bx bx-bar-chart-alt-2 me-2"></i>Peak Activity</h6>
                                     </div>
@@ -786,8 +966,35 @@ $conn->close();
                                 </div>
                             </div>
                         </div>
+                        <?php else: ?>
+                        <div class="card card-enhanced mt-4">
+                            <div class="card-body">
+                                <div class="empty-state">
+                                    <i class="bx bx-bar-chart-alt"></i>
+                                    <h6>No Activity Data Found</h6>
+                                    <p class="text-muted mb-0">No stock movements recorded for the selected period and filters.</p>
+                                    <button type="button" class="btn btn-outline-primary mt-2" onclick="resetFilters()">
+                                        <i class="bx bx-refresh"></i>Try Different Filters
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <?php endif; ?>
                     </div>
+                    <!-- Footer -->
+                    <footer class="content-footer footer bg-footer-theme">
+                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                            <div class="mb-2 mb-md-0">
+                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
+                            </div>
+                            <div>
+                                <a href="#" class="footer-link me-4">Documentation</a>
+                                <a href="#" class="footer-link me-4">Support</a>
+                                <a href="#" class="footer-link">Contact</a>
+                            </div>
+                        </div>
+                    </footer>
+                    <div class="content-backdrop fade"></div>
                 </div>
             </div>
         </div>
@@ -806,6 +1013,11 @@ $conn->close();
     let showDataLabels = false;
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize page functionality
+        initializeStockReportPage();
+    });
+
+    function initializeStockReportPage() {
         // PHP data embedded directly into JavaScript
         var chartData = <?php echo $chart_data_json; ?>;
         
@@ -821,8 +1033,17 @@ $conn->close();
                 e.preventDefault();
                 exportChart();
             }
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                location.reload();
+            }
         });
-    });
+
+        // Setup tooltips
+        initializeTooltips();
+        
+        console.log('Stock Report page initialized successfully');
+    }
 
     function initializeChart(chartData) {
         var ctx = document.getElementById('stockMovementChart').getContext('2d');
@@ -985,48 +1206,95 @@ $conn->close();
         exportChart();
     }
 
+    function resetFilters() {
+        window.location.href = 'stock-report.php';
+    }
+
+    // Initialize tooltips (if Bootstrap tooltips are available)
+    function initializeTooltips() {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        }
+    }
+
     // Print styles
     window.addEventListener('beforeprint', function() {
         document.body.classList.add('printing');
+        document.querySelectorAll('.btn, .dropdown').forEach(el => {
+            el.style.display = 'none';
+        });
     });
 
     window.addEventListener('afterprint', function() {
         document.body.classList.remove('printing');
+        document.querySelectorAll('.btn, .dropdown').forEach(el => {
+            el.style.display = '';
+        });
     });
+
+    // Enhanced error handling
+    window.addEventListener('error', function(e) {
+        console.error('JavaScript error in stock report page:', e.error);
+    });
+
+    // Performance monitoring
+    if (performance && performance.now) {
+        const loadTime = performance.now();
+        console.log(`Stock Report page loaded in ${loadTime.toFixed(2)}ms`);
+    }
     </script>
 
-    <style>
-    @media print {
-        .layout-menu, .layout-navbar, .export-btn, .dropdown {
+    <!-- Print Styles -->
+    <style media="print">
+        .layout-menu,
+        .layout-navbar,
+        .content-footer,
+        .action-buttons,
+        .btn,
+        .dropdown,
+        .export-btn {
             display: none !important;
         }
+        
         .content-wrapper {
             margin: 0 !important;
             padding: 20px !important;
         }
+        
         .card {
             border: 1px solid #ddd !important;
             box-shadow: none !important;
+            page-break-inside: avoid;
         }
+        
         .report-header {
             background: #f8f9fa !important;
             color: #333 !important;
             -webkit-print-color-adjust: exact;
         }
+        
+        .filter-card {
+            background: #f8f9fa !important;
+            color: #333 !important;
+        }
+        
         .chart-container {
             height: 300px !important;
         }
-    }
-    
-    .printing .layout-menu,
-    .printing .layout-navbar {
-        display: none;
-    }
-    
-    .printing .layout-page {
-        margin: 0;
-    }
+        
+        .page-title::after {
+            content: " - Printed on " attr(data-print-date);
+            font-size: 12px;
+            color: #666;
+        }
     </style>
+    
+    <!-- SEO and Meta Enhancement -->
+    <meta name="description" content="Stock Movement Report - Comprehensive analysis of inventory transactions and trends">
+    <meta name="keywords" content="stock report, inventory analysis, stock movement, inventory tracking">
 </body>
 
 </html>

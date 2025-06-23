@@ -85,11 +85,77 @@ if (isset($_SESSION['form_data'])) {
     unset($_SESSION['form_data']); // Clear form data from session
 }
 
+// --- HANDLE FORM SUBMISSION ---
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $conn->begin_transaction();
+    try {
+        // Main Bill Data
+        $supplier_id = $_POST['supplier_id']; 
+        $date_received = $_POST['date_received'];
+        $due_date = $_POST['due_date'];
+        $bill_number = $_POST['bill_number'];
+        $notes = $_POST['notes'] ?? '';
+        
+        // Calculate total from items
+        $total_due = 0;
+        if (isset($_POST['items'])) {
+            foreach ($_POST['items'] as $item) {
+                if (!empty($item['product_id'])) {
+                    $quantity = $item['quantity'];
+                    $rate = $item['rate'];
+                    $total_due += ($quantity * $rate);
+                }
+            }
+        }
+        
+        // Add SST (6%)
+        $total_due = $total_due * 1.06;
+
+        // 1. Insert into supplier_bills table
+        $stmt_bill = $conn->prepare("INSERT INTO supplier_bills (supplier_id, bill_number, date_received, date_due, total_due, notes, status) VALUES (?, ?, ?, ?, ?, ?, 'Pending')");
+        $stmt_bill->bind_param("isssds", $supplier_id, $bill_number, $date_received, $due_date, $total_due, $notes);
+        
+        if(!$stmt_bill->execute()) {
+            throw new Exception("Error saving bill: " . $stmt_bill->error);
+        }
+        $bill_id = $conn->insert_id;
+        $stmt_bill->close();
+        
+        // 2. Insert into supplier_bill_items table
+        $stmt_items = $conn->prepare("INSERT INTO supplier_bill_items (bill_id, product_id, quantity, price_at_purchase) VALUES (?, ?, ?, ?)");
+        
+        if (isset($_POST['items'])) {
+            foreach ($_POST['items'] as $item) {
+                if (empty($item['product_id'])) continue; // Skip empty rows
+
+                $product_id = $item['product_id'];
+                $quantity = $item['quantity'];
+                $price_at_purchase = $item['rate']; 
+                
+                $stmt_items->bind_param("iiid", $bill_id, $product_id, $quantity, $price_at_purchase);
+                if(!$stmt_items->execute()) {
+                    throw new Exception("Error adding item: " . $stmt_items->error);
+                }
+            }
+        }
+        $stmt_items->close();
+
+        // If everything is OK, commit the transaction
+        $conn->commit();
+        $_SESSION['success_message'] = "Invoice #{$bill_number} has been created successfully!";
+        header("location: order-billing.php"); // Redirect to a listing page
+        exit;
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        $error_message = "Failed to create Invoice: " . $e->getMessage();
+    }
+}
 
 // --- DATA FETCHING FOR FORM DROPDOWNS ---
 $suppliers = [];
-// MODIFIED: Fetch suppliers from `customer_supplier` table where type is 'supplier'
-$supplier_query = "SELECT id, name FROM `customer_supplier` WHERE type = 'supplier' ORDER BY name ASC";
+// FIXED: Fetch suppliers from `customer_supplier` table using correct column names
+$supplier_query = "SELECT id, CONCAT(firstName, ' ', lastName, ' (', companyName, ')') as name FROM `customer_supplier` WHERE registrationType = 'supplier' AND status = 'active' ORDER BY companyName ASC";
 $supplier_result = $conn->query($supplier_query);
 if (!$supplier_result) {
     $error_message .= "Error fetching suppliers: " . $conn->error;
@@ -113,200 +179,457 @@ if (!$product_result) {
 $conn->close(); // Close connection after fetching data for display
 ?>
 <!DOCTYPE html>
-<html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
+<html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Supplier Invoice - Inventomo</title>
     <meta name="description" content="Create a new bill received from a supplier" />
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/inventomo.ico" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
-    <link rel="stylesheet" href="assets/vendor/css/core.css" class="template-customizer-core-css" />
-    <link rel="stylesheet" href="assets/vendor/css/theme-default.css" class="template-customizer-theme-css" />
-    <link rel="stylesheet" href="assets/css/demo.css" />
-    <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <script src="assets/vendor/js/helpers.js"></script>
-    <script src="assets/js/config.js"></script>
     <style>
-        /* Custom popup for success/error messages */
-        .custom-popup {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .form-content {
+            padding: 30px;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #c0392b;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #2c3e50;
+        }
+
+        .required {
+            color: #e74c3c;
+        }
+
+        .form-control {
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #e74c3c;
+            box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .items-table th {
+            background: #c0392b;
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .items-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .items-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .add-item-btn {
+            margin-top: 15px;
+        }
+
+        .summary-section {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 25px;
+            margin-top: 25px;
+        }
+
+        .notes-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .totals-section {
+            background: #c0392b;
+            color: white;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 5px 0;
+        }
+
+        .total-final {
+            border-top: 2px solid rgba(255, 255, 255, 0.3);
+            margin-top: 15px;
+            padding-top: 15px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-popup {
             position: fixed;
             top: 20px;
             right: 20px;
-            background-color: #28a745; /* Green for success */
+            background: #27ae60;
             color: white;
             padding: 15px 25px;
             border-radius: 8px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 1100;
+            z-index: 1000;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.5s, visibility 0.5s, transform 0.5s;
+            transition: all 0.5s ease;
             transform: translateY(-20px);
-            font-size: 1rem;
-            font-weight: 500;
         }
-        .custom-popup.error {
-            background-color: #dc3545; /* Red for error */
-        }
-        .custom-popup.show {
+
+        .status-popup.show {
             opacity: 1;
             visibility: visible;
             transform: translateY(0);
         }
+
+        .status-popup.error {
+            background: #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .summary-section {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .items-table {
+                font-size: 12px;
+            }
+
+            .container {
+                margin: 10px;
+                border-radius: 8px;
+            }
+
+            body {
+                padding: 10px;
+            }
+        }
+
+        body {
+    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+                url('assets/img/backgrounds/inside-background.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+}
+
+/* Ensure layout wrapper takes full space */
+.layout-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
+
+/* Content wrapper with transparent background to show body background */
+.content-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
     </style>
 </head>
-
 <body>
-    <div id="statusPopup" class="custom-popup">
-        <i class='bx bx-info-circle me-2'></i> <span id="statusMessage"></span>
+    <div id="statusPopup" class="status-popup">
+        <span id="statusMessage"></span>
     </div>
 
-    <div class="layout-wrapper layout-content-navbar">
-        <div class="layout-container">
-            <div class="layout-page">
-                <div class="content-wrapper">
-                    <form id="supplierInvoiceForm" method="POST" action="save-invoice.php">
-                        <div class="container-xxl flex-grow-1 container-p-y">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h4 class="fw-bold py-3 mb-0"><span class="text-muted fw-light">Orders /</span> Create Supplier Invoice</h4>
-                                <div class="action-buttons">
-                                    <a href="order-billing.php" class="btn btn-secondary"><i class="bx bx-x me-1"></i>Cancel</a>
-                                    <button type="submit" class="btn btn-primary"><i class="bx bx-save me-1"></i>Save Bill</button>
-                                </div>
-                            </div>
+    <div class="container">
+        <div class="header">
+            <h1>Create Supplier Invoice</h1>
+            <div class="header-actions">
+                <a href="order-billing.php" class="btn btn-secondary">✕ Cancel</a>
+                <button type="submit" class="btn btn-primary" form="supplierInvoiceForm">💾 Save Bill</button>
+            </div>
+        </div>
 
-                            <?php if (!empty($error_message)): ?>
-                            <div class="alert alert-danger" role="alert"><i class="bx bx-error-circle me-2"></i><?php echo $error_message; ?></div>
-                            <?php endif; ?>
+        <div class="form-content">
+            <?php if (!empty($error_message)): ?>
+            <div class="alert alert-danger" role="alert">
+                <span>⚠️</span>
+                <?php echo $error_message; ?>
+            </div>
+            <?php endif; ?>
 
-                            <div class="card mb-4">
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="supplier_id" class="form-label">Supplier <span class="text-danger">*</span></label>
-                                            <select id="supplier_id" name="supplier_id" class="form-select" required>
-                                                <option value="" disabled selected>Select a supplier...</option>
-                                                <?php foreach ($suppliers as $supplier): ?>
-                                                    <option value="<?php echo $supplier['id']; ?>" <?php echo ($supplier['id'] == $supplier_id) ? 'selected' : ''; ?>>
-                                                        <?php echo htmlspecialchars($supplier['name']); ?>
+            <?php if (!empty($success_message)): ?>
+            <div class="alert alert-success" role="alert">
+                <span>✅</span>
+                <?php echo $success_message; ?>
+            </div>
+            <?php endif; ?>
+
+            <form id="supplierInvoiceForm" method="POST" action="create-invoice.php">
+                <!-- Supplier & Basic Info Section -->
+                <div class="form-section">
+                    <h2 class="section-title">Invoice Information</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Supplier <span class="required">*</span></label>
+                            <select id="supplier_id" name="supplier_id" class="form-control" required>
+                                <option value="" disabled selected>Select a supplier...</option>
+                                <?php foreach ($suppliers as $supplier): ?>
+                                    <option value="<?php echo $supplier['id']; ?>" <?php echo ($supplier['id'] == $supplier_id) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($supplier['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bill / Invoice Number</label>
+                            <input type="text" id="bill_number" name="bill_number" class="form-control" value="<?php echo htmlspecialchars($bill_number); ?>" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Date Received</label>
+                            <input type="date" id="date_received" name="date_received" class="form-control" value="<?php echo htmlspecialchars($date_received); ?>" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" id="due_date" name="due_date" class="form-control" value="<?php echo htmlspecialchars($due_date); ?>">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items Section -->
+                <div class="form-section">
+                    <h2 class="section-title">Items</h2>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th style="width: 15%;">Qty</th>
+                                <th style="width: 15%;">Price</th>
+                                <th style="width: 15%;">Amount</th>
+                                <th style="width: 5%;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-table-body">
+                            <?php if (!empty($posted_items)): ?>
+                                <?php foreach ($posted_items as $index => $item): ?>
+                                    <?php
+                                        $p_id = $item['product_id'] ?? '';
+                                        $qty = $item['quantity'] ?? 1;
+                                        $rate = $item['rate'] ?? 0;
+                                        $amount = number_format((float)$qty * (float)$rate, 2);
+                                    ?>
+                                    <tr>
+                                        <td>
+                                            <select name="items[<?php echo $index; ?>][product_id]" class="form-control item-select" required>
+                                                <option value="">Select an item...</option>
+                                                <?php foreach ($products as $product): ?>
+                                                    <option value="<?php echo $product['id']; ?>" data-price="<?php echo $product['price']; ?>" <?php echo ($product['id'] == $p_id) ? 'selected' : ''; ?>>
+                                                        <?php echo htmlspecialchars($product['name']); ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
-                                        </div>
-                                        <div class="col-md-3 mb-3">
-                                            <label for="date_received" class="form-label">Date Received</label>
-                                            <input type="date" id="date_received" name="date_received" class="form-control" value="<?php echo htmlspecialchars($date_received); ?>" required>
-                                        </div>
-                                        <div class="col-md-3 mb-3">
-                                            <label for="due_date" class="form-label">Due Date</label>
-                                            <input type="date" id="due_date" name="due_date" class="form-control" value="<?php echo htmlspecialchars($due_date); ?>">
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                         <div class="col-md-6 mb-3">
-                                            <label for="bill_number" class="form-label">Bill / Invoice Number</label>
-                                            <input type="text" id="bill_number" name="bill_number" class="form-control" value="<?php echo htmlspecialchars($bill_number); ?>" required>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="card">
-                                <h5 class="card-header">Items</h5>
-                                <div class="table-responsive text-nowrap">
-                                    <table class="table">
-                                        <thead>
-                                            <tr>
-                                                <th>Item</th>
-                                                <th style="width: 15%;">Qty</th>
-                                                <th style="width: 15%;">Price</th>
-                                                <th style="width: 15%;">Amount</th>
-                                                <th style="width: 5%;"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="items-table-body">
-                                            <?php if (!empty($posted_items)): ?>
-                                                <?php foreach ($posted_items as $index => $item): ?>
-                                                    <?php
-                                                        $p_id = $item['product_id'] ?? '';
-                                                        $qty = $item['quantity'] ?? 1;
-                                                        $rate = $item['rate'] ?? 0;
-                                                        $amount = number_format((float)$qty * (float)$rate, 2);
-                                                    ?>
-                                                    <tr>
-                                                        <td>
-                                                            <select name="items[<?php echo $index; ?>][product_id]" class="form-select item-select" required onchange="updateRowPrice(this)">
-                                                                <option value="">Select an item...</option>
-                                                                <?php foreach ($products as $product): ?>
-                                                                    <option value="<?php echo $product['id']; ?>" data-price="<?php echo $product['price']; ?>" <?php echo ($product['id'] == $p_id) ? 'selected' : ''; ?>>
-                                                                        <?php echo htmlspecialchars($product['name']); ?>
-                                                                    </option>
-                                                                <?php endforeach; ?>
-                                                            </select>
-                                                        </td>
-                                                        <td><input type="number" name="items[<?php echo $index; ?>][quantity]" class="form-control item-qty" value="<?php echo htmlspecialchars($qty); ?>" min="1" required oninput="updateTotals()"></td>
-                                                        <td><input type="number" name="items[<?php echo $index; ?>][rate]" class="form-control item-rate" step="0.01" value="<?php echo htmlspecialchars($rate); ?>" min="0" required oninput="updateTotals()"></td>
-                                                        <td class="item-amount text-end">RM <?php echo $amount; ?></td>
-                                                        <td><button type="button" class="btn btn-sm btn-danger" onclick="removeItemRow(this)">X</button></td>
-                                                    </tr>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="card-body">
-                                    <button type="button" class="btn btn-success" onclick="addItemRow()">+ Add Item</button>
-                                </div>
-                            </div>
-
-                            <div class="row mt-4">
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <label for="notes" class="form-label">Notes</label>
-                                            <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Enter any notes about this bill..."><?php echo htmlspecialchars($notes); ?></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between mb-2">
-                                                <span>Subtotal</span>
-                                                <span id="subtotal-text">RM 0.00</span>
-                                            </div>
-                                            <div class="d-flex justify-content-between mb-2">
-                                                <span>SST (6%)</span>
-                                                <span id="sst-text">RM 0.00</span>
-                                            </div>
-                                            <hr>
-                                            <div class="d-flex justify-content-between fw-bold h5">
-                                                <span>Total Due</span>
-                                                <span id="total-due-text">RM 0.00</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-                    </form>
+                                        </td>
+                                        <td><input type="number" name="items[<?php echo $index; ?>][quantity]" class="form-control item-qty" value="<?php echo htmlspecialchars($qty); ?>" min="1" required></td>
+                                        <td><input type="number" name="items[<?php echo $index; ?>][rate]" class="form-control item-rate" step="0.01" value="<?php echo htmlspecialchars($rate); ?>" min="0" required></td>
+                                        <td class="item-amount" style="text-align: right;">RM <?php echo $amount; ?></td>
+                                        <td><button type="button" class="btn btn-danger" onclick="removeItemRow(this)">×</button></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-success add-item-btn" onclick="addItemRow()">+ Add Item</button>
                 </div>
-            </div>
+
+                <!-- Summary Section -->
+                <div class="summary-section">
+                    <div class="notes-section">
+                        <h3 class="section-title">Notes</h3>
+                        <textarea class="form-control" id="notes" name="notes" rows="6" placeholder="Enter any notes about this bill..."><?php echo htmlspecialchars($notes); ?></textarea>
+                    </div>
+                    <div class="totals-section">
+                        <h3 style="margin-bottom: 20px; color: white;">Invoice Summary</h3>
+                        <div class="total-row">
+                            <span>Subtotal</span>
+                            <span id="subtotal-text">RM 0.00</span>
+                        </div>
+                        <div class="total-row">
+                            <span>SST (6%)</span>
+                            <span id="sst-text">RM 0.00</span>
+                        </div>
+                        <div class="total-row total-final">
+                            <span>Total Due</span>
+                            <span id="total-due-text">RM 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
-    <script src="assets/vendor/libs/jquery/jquery.js"></script>
-    <script src="assets/vendor/libs/popper/popper.js"></script>
-    <script src="assets/vendor/js/bootstrap.js"></script>
-    <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-    <script src="assets/vendor/js/menu.js"></script>
-    <script src="assets/js/main.js"></script>
-    
     <script>
         // PHP-generated JavaScript variable holding product data
         const products = <?php echo json_encode($products); ?>;
@@ -339,13 +662,14 @@ $conn->close(); // Close connection after fetching data for display
             const newRow = document.createElement('tr');
 
             newRow.innerHTML = `
-                <td><select name="items[${newIndex}][product_id]" class="form-select item-select" required onchange="updateRowPrice(this)">${buildProductOptions()}</select></td>
-                <td><input type="number" name="items[${newIndex}][quantity]" class="form-control item-qty" value="1" min="1" required oninput="updateTotals()"></td>
-                <td><input type="number" name="items[${newIndex}][rate]" class="form-control item-rate" step="0.01" min="0" required oninput="updateTotals()"></td>
-                <td class="item-amount text-end">RM 0.00</td>
-                <td><button type="button" class="btn btn-sm btn-danger" onclick="removeItemRow(this)">X</button></td>
+                <td><select name="items[${newIndex}][product_id]" class="form-control item-select" required>${buildProductOptions()}</select></td>
+                <td><input type="number" name="items[${newIndex}][quantity]" class="form-control item-qty" value="1" min="1" required></td>
+                <td><input type="number" name="items[${newIndex}][rate]" class="form-control item-rate" step="0.01" min="0" required></td>
+                <td class="item-amount" style="text-align: right;">RM 0.00</td>
+                <td><button type="button" class="btn btn-danger" onclick="removeItemRow(this)">×</button></td>
             `;
             tableBody.appendChild(newRow);
+            attachRowListeners(newRow);
             updateTotals(); // Recalculate totals after adding a new row
             console.log('New row added.'); // DEBUG
         }
@@ -373,19 +697,39 @@ $conn->close(); // Close connection after fetching data for display
             updateTotals(); // Recalculate totals
         }
 
+        function attachRowListeners(row) {
+            const select = row.querySelector('.item-select');
+            const qtyInput = row.querySelector('.item-qty');
+            const rateInput = row.querySelector('.item-rate');
+
+            select.addEventListener('change', () => {
+                const selectedOption = select.options[select.selectedIndex];
+                const price = selectedOption.dataset.price || 0;
+                rateInput.value = parseFloat(price).toFixed(2);
+                updateTotals();
+            });
+
+            [qtyInput, rateInput].forEach(input => {
+                input.addEventListener('input', updateTotals);
+            });
+        }
+
         /**
          * Removes an item row from the invoice table.
          * @param {HTMLButtonElement} button - The 'X' button that was clicked.
          */
         function removeItemRow(button) {
             console.log('removeItemRow called.'); // DEBUG
-            const row = button.closest('tr');
-            if (row) {
-                row.remove(); // Remove the entire row
-                updateTotals(); // Recalculate totals
-                console.log('Row removed.'); // DEBUG
-            } else {
-                console.error('Could not find parent row for remove button.');
+            const tableBody = document.getElementById('items-table-body');
+            if (tableBody.rows.length > 1) {
+                const row = button.closest('tr');
+                if (row) {
+                    row.remove(); // Remove the entire row
+                    updateTotals(); // Recalculate totals
+                    console.log('Row removed.'); // DEBUG
+                } else {
+                    console.error('Could not find parent row for remove button.');
+                }
             }
         }
 
@@ -432,6 +776,8 @@ $conn->close(); // Close connection after fetching data for display
                 console.log('Initial row added because table was empty.'); // DEBUG
             } else {
                 // If rows exist (e.g., re-populated from $_SESSION['form_data']), update totals
+                const existingRows = document.querySelectorAll('#items-table-body tr');
+                existingRows.forEach(attachRowListeners);
                 updateTotals();
                 console.log('Table already had rows, updating totals.'); // DEBUG
             }
@@ -442,20 +788,104 @@ $conn->close(); // Close connection after fetching data for display
 
             // Check for PHP-generated success message
             <?php if (!empty($success_message)): ?>
-                statusMessageSpan.textContent = '<?php echo $success_message; ?>';
+                statusMessageSpan.textContent = '✅ <?php echo $success_message; ?>';
                 statusPopup.classList.add('show');
                 statusPopup.classList.remove('error'); // Ensure it's not red
-                statusPopup.querySelector('i').className = 'bx bx-check-circle me-2'; // Check icon
                 setTimeout(() => {
                     statusPopup.classList.remove('show');
                 }, 5000); // Popup disappears after 5 seconds
                 console.log('Success message displayed.'); // DEBUG
             <?php endif; ?>
 
-            // If there was an error message from save-invoice.php (which is already displayed in an alert)
-            // Or if an error occurs client-side and needs a popup (not currently implemented for client-side validation errors)
-            // You can add more complex logic here if needed.
+            <?php if (!empty($error_message)): ?>
+                statusMessageSpan.textContent = '⚠️ Error occurred. Check form for details.';
+                statusPopup.classList.add('show', 'error');
+                setTimeout(() => {
+                    statusPopup.classList.remove('show');
+                }, 5000);
+                console.log('Error message displayed.'); // DEBUG
+            <?php endif; ?>
         });
+
+        // Form submission validation
+        document.getElementById('supplierInvoiceForm').addEventListener('submit', function(e) {
+            const tableBody = document.getElementById('items-table-body');
+            const rows = tableBody.querySelectorAll('tr');
+            let hasValidItems = false;
+
+            // Check if at least one row has a selected product
+            rows.forEach(row => {
+                const productSelect = row.querySelector('.item-select');
+                if (productSelect && productSelect.value) {
+                    hasValidItems = true;
+                }
+            });
+
+            if (!hasValidItems) {
+                e.preventDefault();
+                alert('Please add at least one item to the invoice.');
+                return false;
+            }
+
+            // Additional validation for required fields
+            const supplier = document.getElementById('supplier_id').value;
+            const billNumber = document.getElementById('bill_number').value;
+            const dateReceived = document.getElementById('date_received').value;
+
+            if (!supplier || !billNumber || !dateReceived) {
+                e.preventDefault();
+                alert('Please fill in all required fields.');
+                return false;
+            }
+
+            console.log('Form validation passed, submitting...'); // DEBUG
+        });
+
+        // Auto-save functionality (optional)
+        function autoSave() {
+            const formData = new FormData(document.getElementById('supplierInvoiceForm'));
+            // This could be expanded to save draft data to localStorage or session
+            console.log('Auto-save triggered'); // DEBUG
+        }
+
+        // Trigger auto-save every 30 seconds
+        setInterval(autoSave, 30000);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+S to save
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                document.getElementById('supplierInvoiceForm').submit();
+            }
+            
+            // Ctrl+N to add new item
+            if (e.ctrlKey && e.key === 'n') {
+                e.preventDefault();
+                addItemRow();
+            }
+        });
+
+        // Number formatting helper
+        function formatCurrency(amount) {
+            return 'RM ' + parseFloat(amount).toFixed(2);
+        }
+
+        // Enhanced error handling
+        window.addEventListener('error', function(e) {
+            console.error('JavaScript error:', e.error);
+        });
+
+        // Print functionality (bonus feature)
+        function printInvoice() {
+            window.print();
+        }
+
+        // Export functionality placeholder
+        function exportInvoice() {
+            console.log('Export functionality could be implemented here');
+            // This could export to PDF, Excel, etc.
+        }
     </script>
 </body>
 </html>

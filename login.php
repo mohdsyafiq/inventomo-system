@@ -147,6 +147,29 @@ if($mysqli->connect_error){
   data-template="vertical-menu-template-free"
 >
   <head>
+    <style>
+      body {
+    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+                url('assets/img/backgrounds/background.jpg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+}
+
+/* Ensure layout wrapper takes full space */
+.layout-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
+
+/* Content wrapper with transparent background to show body background */
+.content-wrapper {
+    background: transparent;
+    min-height: 100vh;
+}
+    </style>
     <meta charset="utf-8" />
     <meta
       name="viewport"

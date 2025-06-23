@@ -709,6 +709,34 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
             min-width: 800px;
         }
     }
+
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+            url('assets/img/backgrounds/inside-background.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        min-height: 100vh;
+    }
+
+    /* Ensure layout wrapper takes full space */
+    .layout-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    /* Content wrapper with transparent background to show body background */
+    .content-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    .page-title {
+        color: white;
+        font-size: 2.0rem;
+        font-weight: bold;
+    }
     </style>
 
     <!-- Helpers -->
@@ -751,7 +779,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -769,7 +797,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -823,9 +851,9 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                         <?php
                                         $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
                                         if ($navbar_pic): ?>
-                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
@@ -833,11 +861,13 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                <div
+                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                                     <?php if ($navbar_pic): ?>
-                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
+                                                        alt="Profile Picture">
                                                     <?php else: ?>
-                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                                     <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
@@ -858,12 +888,6 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                         <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <i class="bx bx-user me-2"></i>
                                             <span class="align-middle">My Profile</span>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="#">
-                                            <i class="bx bx-cog me-2"></i>
-                                            <span class="align-middle">Settings</span>
                                         </a>
                                     </li>
                                     <li>
@@ -928,7 +952,8 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                 </div>
                                 <div class="filter-row">
                                     <label class="filter-label">Item Search:</label>
-                                    <input type="text" class="filter-input" id="itemFilter" placeholder="Search by Item ID or Description">
+                                    <input type="text" class="filter-input" id="itemFilter"
+                                        placeholder="Search by Item ID or Description">
                                     <select class="filter-input" id="categoryFilter">
                                         <option value="">All Categories</option>
                                         <option value="electronics">Electronics</option>
@@ -939,9 +964,11 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                 </div>
                                 <div class="filter-row">
                                     <label class="filter-label">Amount Range:</label>
-                                    <input type="number" class="filter-input" id="minAmount" placeholder="Min Amount (RM)" step="0.01">
+                                    <input type="number" class="filter-input" id="minAmount"
+                                        placeholder="Min Amount (RM)" step="0.01">
                                     <span class="date-separator">to</span>
-                                    <input type="number" class="filter-input" id="maxAmount" placeholder="Max Amount (RM)" step="0.01">
+                                    <input type="number" class="filter-input" id="maxAmount"
+                                        placeholder="Max Amount (RM)" step="0.01">
                                     <span class="filter-note">Filter by transaction amount</span>
                                 </div>
                             </div>
@@ -992,11 +1019,14 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                             <tr>
                                                 <td><?php echo $index + 1; ?></td>
                                                 <td><?php echo date('d-m-Y', strtotime($report['date'])); ?></td>
-                                                <td><strong><?php echo htmlspecialchars($report['item_id']); ?></strong></td>
+                                                <td><strong><?php echo htmlspecialchars($report['item_id']); ?></strong>
+                                                </td>
                                                 <td><?php echo htmlspecialchars($report['description']); ?></td>
                                                 <td><?php echo $report['quantity']; ?></td>
-                                                <td class="amount-col">RM <?php echo number_format($report['price'], 2); ?></td>
-                                                <td class="amount-col"><strong>RM <?php echo number_format($report['total'], 2); ?></strong></td>
+                                                <td class="amount-col">RM
+                                                    <?php echo number_format($report['price'], 2); ?></td>
+                                                <td class="amount-col"><strong>RM
+                                                        <?php echo number_format($report['total'], 2); ?></strong></td>
                                             </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -1009,19 +1039,23 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                 <div class="summary-grid">
                                     <div class="summary-card">
                                         <div class="summary-label">Total Transactions</div>
-                                        <div class="summary-value" id="totalTransactions"><?php echo $total_transactions; ?></div>
+                                        <div class="summary-value" id="totalTransactions">
+                                            <?php echo $total_transactions; ?></div>
                                     </div>
                                     <div class="summary-card">
                                         <div class="summary-label">Total Quantity</div>
-                                        <div class="summary-value" id="totalQuantity"><?php echo $total_quantity; ?></div>
+                                        <div class="summary-value" id="totalQuantity"><?php echo $total_quantity; ?>
+                                        </div>
                                     </div>
                                     <div class="summary-card revenue">
                                         <div class="summary-label">Total Revenue</div>
-                                        <div class="summary-value" id="totalRevenue">RM <?php echo number_format($total_revenue, 2); ?></div>
+                                        <div class="summary-value" id="totalRevenue">RM
+                                            <?php echo number_format($total_revenue, 2); ?></div>
                                     </div>
                                     <div class="summary-card">
                                         <div class="summary-label">Average Order</div>
-                                        <div class="summary-value" id="averageOrder">RM <?php echo number_format($average_order, 2); ?></div>
+                                        <div class="summary-value" id="averageOrder">RM
+                                            <?php echo number_format($average_order, 2); ?></div>
                                     </div>
                                 </div>
                             </div>
@@ -1029,7 +1063,8 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                             <!-- Pagination -->
                             <div class="pagination-wrapper">
                                 <div class="pagination-info" id="paginationInfo">
-                                    Showing 1 to <?php echo count($sample_reports); ?> of <?php echo count($sample_reports); ?> entries
+                                    Showing 1 to <?php echo count($sample_reports); ?> of
+                                    <?php echo count($sample_reports); ?> entries
                                 </div>
                                 <div class="pagination-controls">
                                     <button class="page-btn" id="prevBtn" disabled>
@@ -1047,9 +1082,12 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
                     <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
-                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div
+                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
+                                © <script>
+                                document.write(new Date().getFullYear());
+                                </script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -1116,7 +1154,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     // Search and filter functionality
     function searchReport() {
         showLoading();
-        
+
         setTimeout(() => {
             const fromDate = document.getElementById('fromDate').value;
             const toDate = document.getElementById('toDate').value;
@@ -1181,7 +1219,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     function refreshReport() {
         const btn = event.target.closest('.btn-refresh');
         const originalContent = btn.innerHTML;
-        
+
         btn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i>Refreshing...';
         btn.disabled = true;
 
@@ -1191,10 +1229,10 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
             renderTable();
             updateSummary();
             updatePagination();
-            
+
             btn.innerHTML = originalContent;
             btn.disabled = false;
-            
+
             // Update timestamp
             const timeElement = document.querySelector('.card-actions .filter-note');
             timeElement.textContent = `Last updated: ${new Date().toLocaleString('en-GB', {
@@ -1210,10 +1248,11 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     // Generate advanced report
     function generateAdvancedReport() {
         showLoading();
-        
+
         setTimeout(() => {
             hideLoading();
-            alert('Advanced Report Generated!\n\nThis would typically:\n• Generate detailed analytics\n• Create charts and graphs\n• Provide trend analysis\n• Export comprehensive PDF report\n\nFeature would be fully implemented in production.');
+            alert(
+                'Advanced Report Generated!\n\nThis would typically:\n• Generate detailed analytics\n• Create charts and graphs\n• Provide trend analysis\n• Export comprehensive PDF report\n\nFeature would be fully implemented in production.');
         }, 2000);
     }
 
@@ -1272,7 +1311,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
         const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
-        document.getElementById('paginationInfo').textContent = 
+        document.getElementById('paginationInfo').textContent =
             `Showing ${startItem} to ${endItem} of ${totalItems} entries`;
 
         document.getElementById('currentPage').textContent = currentPage;
@@ -1283,14 +1322,15 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     // Setup table sorting
     function setupTableSorting() {
         const headers = document.querySelectorAll('#reportTable th');
-        
+
         headers.forEach((header, index) => {
             if (index > 0 && index < headers.length) { // Skip No. column
                 header.style.cursor = 'pointer';
                 header.addEventListener('click', () => sortTable(index));
-                
+
                 // Add sort indicator
-                header.innerHTML += ' <i class="bx bx-sort" style="opacity: 0.5; font-size: 12px; margin-left: 5px;"></i>';
+                header.innerHTML +=
+                    ' <i class="bx bx-sort" style="opacity: 0.5; font-size: 12px; margin-left: 5px;"></i>';
             }
         });
     }
@@ -1298,11 +1338,11 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     // Sort table by column
     function sortTable(columnIndex) {
         const isAscending = !filteredData.isSorted || filteredData.sortDirection !== 'asc';
-        
+
         filteredData.sort((a, b) => {
             let aVal, bVal;
-            
-            switch(columnIndex) {
+
+            switch (columnIndex) {
                 case 1: // Date
                     aVal = new Date(a.date);
                     bVal = new Date(b.date);
@@ -1330,25 +1370,25 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                 default:
                     return 0;
             }
-            
+
             if (aVal < bVal) return isAscending ? -1 : 1;
             if (aVal > bVal) return isAscending ? 1 : -1;
             return 0;
         });
-        
+
         filteredData.isSorted = true;
         filteredData.sortDirection = isAscending ? 'asc' : 'desc';
-        
+
         // Update sort indicators
         document.querySelectorAll('#reportTable th i').forEach(icon => {
             icon.className = 'bx bx-sort';
             icon.style.opacity = '0.5';
         });
-        
+
         const currentIcon = document.querySelectorAll('#reportTable th')[columnIndex].querySelector('i');
         currentIcon.className = isAscending ? 'bx bx-sort-up' : 'bx bx-sort-down';
         currentIcon.style.opacity = '1';
-        
+
         renderTable();
     }
 
@@ -1486,13 +1526,13 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     document.getElementById('fromDate').addEventListener('change', searchReport);
     document.getElementById('toDate').addEventListener('change', searchReport);
     document.getElementById('categoryFilter').addEventListener('change', searchReport);
-    
+
     // Debounced search for amount fields
     document.getElementById('minAmount').addEventListener('input', function() {
         clearTimeout(this.searchTimeout);
         this.searchTimeout = setTimeout(searchReport, 500);
     });
-    
+
     document.getElementById('maxAmount').addEventListener('input', function() {
         clearTimeout(this.searchTimeout);
         this.searchTimeout = setTimeout(searchReport, 500);

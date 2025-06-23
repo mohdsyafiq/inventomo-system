@@ -552,6 +552,35 @@ foreach ($products as $product) {
             margin-bottom: 0.25rem;
         }
     }
+
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+            url('assets/img/backgrounds/inside-background.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        min-height: 100vh;
+    }
+
+    /* Ensure layout wrapper takes full space */
+    .layout-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    /* Content wrapper with transparent background to show body background */
+    .content-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    .page-title {
+        color: white;
+        font-size: 2.0rem;
+        font-weight: bold;
+    }
+    
     </style>
 
     <!-- Helpers -->
@@ -594,7 +623,7 @@ foreach ($products as $product) {
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -612,7 +641,7 @@ foreach ($products as $product) {
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -666,9 +695,9 @@ foreach ($products as $product) {
                                         <?php
                                         $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
                                         if ($navbar_pic): ?>
-                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
@@ -676,11 +705,13 @@ foreach ($products as $product) {
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                <div
+                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                                     <?php if ($navbar_pic): ?>
-                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
+                                                        alt="Profile Picture">
                                                     <?php else: ?>
-                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                                     <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
@@ -701,12 +732,6 @@ foreach ($products as $product) {
                                         <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <i class="bx bx-user me-2"></i>
                                             <span class="align-middle">My Profile</span>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="#">
-                                            <i class="bx bx-cog me-2"></i>
-                                            <span class="align-middle">Settings</span>
                                         </a>
                                     </li>
                                     <li>
@@ -734,7 +759,6 @@ foreach ($products as $product) {
                         <div class="content-header">
                             <h4 class="page-title">
                                 <i class="bx bx-list-plus"></i>Stock Management
-                                <span class="breadcrumb-text">/ Stock List</span>
                             </h4>
                         </div>
 
@@ -772,7 +796,8 @@ foreach ($products as $product) {
                                     <i class="bx bx-dollar"></i>
                                 </div>
                                 <div class="stat-content">
-                                    <div class="stat-value">$<?php echo number_format($stats['total_value'], 0); ?></div>
+                                    <div class="stat-value">$<?php echo number_format($stats['total_value'], 0); ?>
+                                    </div>
                                     <div class="stat-label">Total Stock Value</div>
                                 </div>
                             </div>
@@ -818,18 +843,19 @@ foreach ($products as $product) {
                                         </thead>
                                         <tbody>
                                             <?php if (!empty($products)): ?>
-                                                <?php foreach ($products as $product): ?>
-                                                    <tr>
-                                                        <td>
-                                                            <strong><?php echo htmlspecialchars($product['id']); ?></strong>
-                                                        </td>
-                                                        <td><?php echo htmlspecialchars($product['name']); ?></td>
-                                                        <td><?php echo htmlspecialchars($product['description'] ?? 'N/A'); ?></td>
-                                                        <td>
-                                                            <strong>$<?php echo number_format($product['price'] ?? 0, 2); ?></strong>
-                                                        </td>
-                                                        <td>
-                                                            <?php
+                                            <?php foreach ($products as $product): ?>
+                                            <tr>
+                                                <td>
+                                                    <strong><?php echo htmlspecialchars($product['id']); ?></strong>
+                                                </td>
+                                                <td><?php echo htmlspecialchars($product['name']); ?></td>
+                                                <td><?php echo htmlspecialchars($product['description'] ?? 'N/A'); ?>
+                                                </td>
+                                                <td>
+                                                    <strong>$<?php echo number_format($product['price'] ?? 0, 2); ?></strong>
+                                                </td>
+                                                <td>
+                                                    <?php
                                                             $quantity = $product['quantity'];
                                                             $badge_class = 'bg-success';
                                                             $badge_icon = 'bx-check-circle';
@@ -842,14 +868,15 @@ foreach ($products as $product) {
                                                                 $badge_icon = 'bx-error';
                                                             }
                                                             ?>
-                                                            <span class="badge <?php echo $badge_class; ?>">
-                                                                <i class="bx <?php echo $badge_icon; ?>"></i>
-                                                                <?php echo htmlspecialchars($quantity); ?>
-                                                            </span>
-                                                        </td>
-                                                        <td><?php echo htmlspecialchars($product['supplier_id'] ?? 'N/A'); ?></td>
-                                                        <td>
-                                                            <?php 
+                                                    <span class="badge <?php echo $badge_class; ?>">
+                                                        <i class="bx <?php echo $badge_icon; ?>"></i>
+                                                        <?php echo htmlspecialchars($quantity); ?>
+                                                    </span>
+                                                </td>
+                                                <td><?php echo htmlspecialchars($product['supplier_id'] ?? 'N/A'); ?>
+                                                </td>
+                                                <td>
+                                                    <?php 
                                                             $date = $product['last_updated'] ?? 'N/A';
                                                             if ($date !== 'N/A') {
                                                                 echo date('M d, Y H:i', strtotime($date));
@@ -857,39 +884,38 @@ foreach ($products as $product) {
                                                                 echo $date;
                                                             }
                                                             ?>
-                                                        </td>
-                                                        <td>
-                                                            <div class="btn-group" role="group">
-                                                                <a href="stock-in.php?id=<?php echo htmlspecialchars($product['id']); ?>" 
-                                                                   class="btn btn-sm btn-success" title="Stock In">
-                                                                    <i class="bx bx-plus"></i>
-                                                                </a>
-                                                                <a href="stock-out.php?id=<?php echo htmlspecialchars($product['id']); ?>" 
-                                                                   class="btn btn-sm btn-warning" title="Stock Out">
-                                                                    <i class="bx bx-minus"></i>
-                                                                </a>
-                                                                <button type="button" class="btn btn-sm btn-info" 
-                                                                        data-bs-toggle="modal" 
-                                                                        data-bs-target="#productModal" 
-                                                                        data-product='<?php echo json_encode($product); ?>'
-                                                                        title="View Details">
-                                                                    <i class="bx bx-show"></i>
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                <?php endforeach; ?>
-                                            <?php else: ?>
-                                                <tr>
-                                                    <td colspan="8" class="empty-state">
-                                                        <i class="bx bx-package"></i>
-                                                        <h6>No Stock Items Found</h6>
-                                                        <p>Start by adding your first product to manage stock levels.</p>
-                                                        <a href="stock-in.php" class="action-btn btn-success">
-                                                            <i class="bx bx-plus"></i>Add First Product
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group" role="group">
+                                                        <a href="stock-in.php?id=<?php echo htmlspecialchars($product['id']); ?>"
+                                                            class="btn btn-sm btn-success" title="Stock In">
+                                                            <i class="bx bx-plus"></i>
                                                         </a>
-                                                    </td>
-                                                </tr>
+                                                        <a href="stock-out.php?id=<?php echo htmlspecialchars($product['id']); ?>"
+                                                            class="btn btn-sm btn-warning" title="Stock Out">
+                                                            <i class="bx bx-minus"></i>
+                                                        </a>
+                                                        <button type="button" class="btn btn-sm btn-info"
+                                                            data-bs-toggle="modal" data-bs-target="#productModal"
+                                                            data-product='<?php echo json_encode($product); ?>'
+                                                            title="View Details">
+                                                            <i class="bx bx-show"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                            <?php else: ?>
+                                            <tr>
+                                                <td colspan="8" class="empty-state">
+                                                    <i class="bx bx-package"></i>
+                                                    <h6>No Stock Items Found</h6>
+                                                    <p>Start by adding your first product to manage stock levels.</p>
+                                                    <a href="stock-in.php" class="action-btn btn-success">
+                                                        <i class="bx bx-plus"></i>Add First Product
+                                                    </a>
+                                                </td>
+                                            </tr>
                                             <?php endif; ?>
                                         </tbody>
                                     </table>
@@ -901,9 +927,12 @@ foreach ($products as $product) {
 
                     <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
-                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div
+                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
+                                © <script>
+                                document.write(new Date().getFullYear());
+                                </script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -1014,33 +1043,33 @@ foreach ($products as $product) {
 
     <!-- Page JS -->
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function() {
         initializeStockManagement();
     });
 
     function initializeStockManagement() {
         // Product modal functionality
         var productModal = document.getElementById('productModal');
-        
+
         if (productModal) {
-            productModal.addEventListener('show.bs.modal', function (event) {
+            productModal.addEventListener('show.bs.modal', function(event) {
                 var button = event.relatedTarget;
                 var product = JSON.parse(button.getAttribute('data-product'));
-                
+
                 // Update modal content
                 document.getElementById('modalProductId').textContent = product.id;
                 document.getElementById('modalProductName').textContent = product.name;
                 document.getElementById('modalProductDescription').textContent = product.description || 'N/A';
-                
+
                 var price = parseFloat(product.price || 0);
                 var quantity = parseInt(product.quantity || 0);
                 var totalValue = price * quantity;
-                
+
                 document.getElementById('modalProductPrice').textContent = ' + price.toFixed(2);
                 document.getElementById('modalProductQuantity').innerHTML = getQuantityBadge(quantity);
                 document.getElementById('modalProductValue').textContent = ' + totalValue.toFixed(2);
                 document.getElementById('modalProductSupplier').textContent = product.supplier_id || 'N/A';
-                
+
                 var lastUpdated = product.last_updated || 'N/A';
                 if (lastUpdated !== 'N/A') {
                     var date = new Date(lastUpdated);
@@ -1053,7 +1082,7 @@ foreach ($products as $product) {
                     });
                 }
                 document.getElementById('modalProductUpdated').textContent = lastUpdated;
-                
+
                 // Update action buttons
                 document.getElementById('modalStockInBtn').href = 'stock-in.php?id=' + product.id;
                 document.getElementById('modalStockOutBtn').href = 'stock-out.php?id=' + product.id;
@@ -1066,7 +1095,7 @@ foreach ($products as $product) {
             card.addEventListener('mouseenter', function() {
                 this.style.transform = 'translateY(-4px)';
             });
-            
+
             card.addEventListener('mouseleave', function() {
                 this.style.transform = 'translateY(-2px)';
             });
@@ -1099,7 +1128,7 @@ foreach ($products as $product) {
     function getQuantityBadge(quantity) {
         var badgeClass = 'bg-success';
         var icon = 'bx-check-circle';
-        
+
         if (quantity <= 0) {
             badgeClass = 'bg-danger';
             icon = 'bx-x-circle';
@@ -1107,7 +1136,7 @@ foreach ($products as $product) {
             badgeClass = 'bg-warning';
             icon = 'bx-error';
         }
-        
+
         return `<span class="badge ${badgeClass}"><i class="bx ${icon}"></i> ${quantity}</span>`;
     }
 
@@ -1137,7 +1166,7 @@ foreach ($products as $product) {
     function clearSearch() {
         const tableBody = document.querySelector('.table tbody');
         const rows = tableBody.querySelectorAll('tr');
-        
+
         rows.forEach(row => {
             row.style.display = '';
             row.style.backgroundColor = '';
@@ -1176,13 +1205,13 @@ foreach ($products as $product) {
             e.preventDefault();
             quickStockIn();
         }
-        
+
         // Ctrl/Cmd + O for stock out
         if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
             e.preventDefault();
             quickStockOut();
         }
-        
+
         // Ctrl/Cmd + R for reports
         if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
             e.preventDefault();
