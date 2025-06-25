@@ -65,114 +65,129 @@ function getProfilePicture($profile_picture, $full_name) {
 // Session check and user profile link logic
 if (isset($_SESSION['user_id']) && $conn) {
     $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
-    
-    // Fetch current user details from database
-    $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
-    $user_result = mysqli_query($conn, $user_query);
-    
-    if ($user_result && mysqli_num_rows($user_result) > 0) {
-        $user_data = mysqli_fetch_assoc($user_result);
-        
-        // Set user information
-        $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
-        $current_user_role = $user_data['position'];
-        $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
-        
-        // Profile link goes to user-profile.php with their ID
-        $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
+
+    // Fetch current user details from database using prepared statement for security
+    $user_query_stmt = $conn->prepare("SELECT full_name, username, position, profile_picture FROM user_profiles WHERE Id = ? LIMIT 1");
+    if ($user_query_stmt) {
+        $user_query_stmt->bind_param("i", $user_id);
+        $user_query_stmt->execute();
+        $user_result = $user_query_stmt->get_result();
+
+        if ($user_result && $user_result->num_rows > 0) {
+            $user_data = $user_result->fetch_assoc();
+
+            // Set user information
+            $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
+            $current_user_role = $user_data['position'];
+            $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
+
+            // Profile link goes to user-profile.php with their ID
+            $profile_link = "user-profile.php?op=view&Id=" . $user_id;
+        }
+        $user_query_stmt->close();
     }
 }
+
 
 $message = "";
 
 // Handle Form Submission (POST Request from Modal)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'stock_in_submit') {
-    $product_id_to_update = intval($_POST['product_id']);
+    // Note: Assuming 'product_id' from the form now refers to 'itemID' in inventory_item
+    $item_id_to_update = intval($_POST['product_id']);
     $quantity_to_add = intval($_POST['quantity_added']);
     $user_who_stocked_in = $current_user_name; // Use actual logged-in user
 
-    // Fetch product name for history logging
-    $product_name_for_history = "";
-    $stmt_name = $conn->prepare("SELECT name FROM products WHERE id = ?");
+    // Fetch item name for history logging from inventory_item table
+    $item_name_for_history = "";
+    $stmt_name = $conn->prepare("SELECT product_name FROM inventory_item WHERE itemID = ?");
     if ($stmt_name) {
-        $stmt_name->bind_param("i", $product_id_to_update);
+        $stmt_name->bind_param("i", $item_id_to_update);
         $stmt_name->execute();
         $result_name = $stmt_name->get_result();
         if ($result_name->num_rows > 0) {
-            $product_name_for_history = $result_name->fetch_assoc()['name'];
+            $item_name_for_history = $result_name->fetch_assoc()['product_name'];
         }
         $stmt_name->close();
     }
 
-    if ($quantity_to_add > 0 && $product_id_to_update > 0) {
+    if ($quantity_to_add > 0 && $item_id_to_update > 0) {
         // Start a transaction for atomicity
         $conn->begin_transaction();
         try {
-            // 1. Update product quantity
-            $stmt_update = $conn->prepare("UPDATE products SET quantity = quantity + ?, last_updated = NOW() WHERE id = ?");
+            // 1. Update item quantity in inventory_item table
+            // 'stock' is the column name for quantity in inventory_item
+            $stmt_update = $conn->prepare("UPDATE inventory_item SET stock = stock + ?, last_updated = NOW() WHERE itemID = ?");
             if ($stmt_update) {
-                $stmt_update->bind_param("ii", $quantity_to_add, $product_id_to_update);
+                $stmt_update->bind_param("ii", $quantity_to_add, $item_id_to_update);
                 $stmt_update->execute();
                 $stmt_update->close();
+            } else {
+                 throw new mysqli_sql_exception("Failed to prepare update statement: " . $conn->error);
             }
 
-            // 2. Record in stock_in_historys
-            $stmt_history = $conn->prepare("INSERT INTO stock_in_historys (product_id, product_name, quantity_added, username, transaction_date) VALUES (?, ?, ?, ?, NOW())");
+            // 2. Record in stock_in_history table
+            // Use 'product_id' and 'product_name' as per stock_in_history table schema
+            $stmt_history = $conn->prepare("INSERT INTO stock_in_history (product_id, product_name, quantity_added, username, transaction_date) VALUES (?, ?, ?, ?, NOW())");
             if ($stmt_history) {
-                $stmt_history->bind_param("isis", $product_id_to_update, $product_name_for_history, $quantity_to_add, $user_who_stocked_in);
+                $stmt_history->bind_param("isis", $item_id_to_update, $item_name_for_history, $quantity_to_add, $user_who_stocked_in);
                 $stmt_history->execute();
                 $stmt_history->close();
+            } else {
+                throw new mysqli_sql_exception("Failed to prepare history insert statement: " . $conn->error);
             }
 
             $conn->commit();
             $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'>
-                         <i class='bx bx-check-circle me-2'></i>
-                         Stock updated successfully! Added <strong>{$quantity_to_add}</strong> units to <strong>'{$product_name_for_history}'</strong>
-                         <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                       </div>";
+                            <i class='bx bx-check-circle me-2'></i>
+                            Stock updated successfully! Added <strong>{$quantity_to_add}</strong> units to <strong>'{$item_name_for_history}'</strong>
+                            <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                        </div>";
         } catch (mysqli_sql_exception $e) {
             $conn->rollback();
             $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                         <i class='bx bx-error-circle me-2'></i>
-                         Error processing stock in: " . $e->getMessage() . "
-                         <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                       </div>";
+                            <i class='bx bx-error-circle me-2'></i>
+                            Error processing stock in: " . $e->getMessage() . "
+                            <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                        </div>";
+            error_log("Stock In Transaction Error: " . $e->getMessage()); // Log detailed error
         }
     } else {
         $message = "<div class='alert alert-warning alert-dismissible fade show' role='alert'>
-                     <i class='bx bx-error me-2'></i>
-                     Please select a product and enter a quantity greater than 0.
-                     <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                   </div>";
+                            <i class='bx bx-error me-2'></i>
+                            Please select an item and enter a quantity greater than 0.
+                            <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                        </div>";
     }
 }
 
-// Fetch all products for the dropdown and history
-$all_products = [];
-$sql_all_products = "SELECT id, name, description, quantity FROM products ORDER BY name ASC";
-$result_all_products = $conn->query($sql_all_products);
-if ($result_all_products && $result_all_products->num_rows > 0) {
-    while($row = $result_all_products->fetch_assoc()) {
-        $all_products[] = $row;
+// Fetch all items from inventory_item for the dropdown
+$all_items = [];
+// *** IMPORTANT CHANGE: Select 'type_product' instead of 'product_type' ***
+$sql_all_items = "SELECT itemID, product_name, type_product, stock, supplier_id, last_updated FROM inventory_item ORDER BY product_name ASC";
+$result_all_items = $conn->query($sql_all_items);
+if ($result_all_items && $result_all_items->num_rows > 0) {
+    while($row = $result_all_items->fetch_assoc()) {
+        $all_items[] = $row;
     }
 }
 
-// Fetch Stock In History
-$stock_in_historys = [];
+// Fetch Stock In History (from stock_in_history table)
+$stock_in_history = [];
 $sql_history = "SELECT sih.id, sih.product_id, sih.product_name, sih.quantity_added, sih.username, sih.transaction_date
-                FROM stock_in_historys sih
+                FROM stock_in_history sih
                 ORDER BY sih.transaction_date DESC LIMIT 50";
 $result_history = $conn->query($sql_history);
 if ($result_history && $result_history->num_rows > 0) {
     while($row = $result_history->fetch_assoc()) {
-        $stock_in_historys[] = $row;
+        $stock_in_history[] = $row;
     }
 }
 
 // Calculate statistics
-$total_stock_ins = count($stock_in_historys);
-$total_quantity_added = array_sum(array_column($stock_in_historys, 'quantity_added'));
-$recent_transactions = array_slice($stock_in_historys, 0, 5);
+$total_stock_ins = count($stock_in_history);
+$total_quantity_added = array_sum(array_column($stock_in_history, 'quantity_added'));
+$recent_transactions = array_slice($stock_in_history, 0, 5);
 
 $conn->close();
 ?>
@@ -190,28 +205,22 @@ $conn->close();
 
     <meta name="description" content="Stock In Management System" />
 
-    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/inventomo.ico" />
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
         rel="stylesheet" />
 
-    <!-- Icons -->
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
 
-    <!-- Core CSS -->
     <link rel="stylesheet" href="assets/vendor/css/core.css" class="template-customizer-core-css" />
     <link rel="stylesheet" href="assets/vendor/css/theme-default.css" class="template-customizer-theme-css" />
     <link rel="stylesheet" href="assets/css/demo.css" />
 
-    <!-- Vendors CSS -->
     <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
 
-    <!-- Page CSS -->
     <style>
     .content-header {
         display: flex;
@@ -605,46 +614,15 @@ $conn->close();
             font-size: 0.875rem;
         }
     }
-
-     body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    .page-title {
-        color: white;
-        font-size: 2.0rem;
-        font-weight: bold;
-    }
     </style>
 
-    <!-- Helpers -->
     <script src="assets/vendor/js/helpers.js"></script>
     <script src="assets/js/config.js"></script>
 </head>
 
 <body>
-    <!-- Layout wrapper -->
     <div class="layout-wrapper layout-content-navbar">
         <div class="layout-container">
-            <!-- Menu -->
             <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
@@ -662,8 +640,7 @@ $conn->close();
                 <div class="menu-inner-shadow"></div>
 
                 <ul class="menu-inner py-1">
-                    <!-- Dashboard -->
-                    <li class="menu-item">
+                    <li class="menu-item active">
                         <a href="index.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-home-circle"></i>
                             <div data-i18n="Analytics">Dashboard</div>
@@ -675,11 +652,11 @@ $conn->close();
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
+                            <i class="menu-icon tf-icons bx bx-card"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
-                    <li class="menu-item active">
+                    <li class="menu-item">
                         <a href="stock-management.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-list-plus"></i>
                             <div data-i18n="Analytics">Stock Management</div>
@@ -693,7 +670,7 @@ $conn->close();
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -714,12 +691,7 @@ $conn->close();
                     </li>
                 </ul>
             </aside>
-            <!-- / Menu -->
-
-
-            <!-- Layout container -->
             <div class="layout-page">
-                <!-- Navbar -->
                 <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
                     id="layout-navbar">
                     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
@@ -729,7 +701,6 @@ $conn->close();
                     </div>
 
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-                        <!-- Search -->
                         <div class="navbar-nav align-items-center">
                             <div class="nav-item d-flex align-items-center">
                                 <i class="bx bx-search fs-4 lh-0"></i>
@@ -737,10 +708,7 @@ $conn->close();
                                     aria-label="Search..." />
                             </div>
                         </div>
-                        <!-- /Search -->
-
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
-                            <!-- User -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
@@ -802,28 +770,19 @@ $conn->close();
                                     </li>
                                 </ul>
                             </li>
-                            <!--/ User -->
-                        </ul>
+                            </ul>
                     </div>
                 </nav>
-                <!-- / Navbar -->
-
-                <!-- Content wrapper -->
                 <div class="content-wrapper">
-                    <!-- Content -->
                     <div class="container-xxl flex-grow-1 container-p-y">
-                        <!-- Page Header -->
-                        <div class="content-header">
-                            <h4 class="page-title">
-                                <i class="bx bx-plus-circle"></i>Stock In Management
-                                <span class="breadcrumb-text">/ Add Stock</span>
-                            </h4>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h4 class="fw-bold"><span class="text-muted fw-light">Stock Management /</span> Stock In</h4>
+                            <div class="d-flex gap-2">
+                            </div>
                         </div>
 
-                        <!-- Display Messages -->
                         <?php echo $message; ?>
 
-                        <!-- Statistics Grid -->
                         <div class="stats-grid">
                             <div class="stat-card transactions">
                                 <div class="stat-icon">
@@ -854,7 +813,6 @@ $conn->close();
                             </div>
                         </div>
 
-                        <!-- Stock In Actions Card -->
                         <div class="action-card">
                             <h5>
                                 <i class="bx bx-plus-circle"></i>Stock In Actions
@@ -875,7 +833,6 @@ $conn->close();
                             </p>
                         </div>
 
-                        <!-- Stock In History Table -->
                         <div class="card">
                             <div class="card-header">
                                 <i class="bx bx-history"></i>Stock In History
@@ -886,16 +843,16 @@ $conn->close();
                                         <thead>
                                             <tr>
                                                 <th>Transaction ID</th>
-                                                <th>Product ID</th>
-                                                <th>Product Name</th>
+                                                <th>Item ID</th>
+                                                <th>Item Name</th>
                                                 <th>Quantity Added</th>
                                                 <th>User</th>
                                                 <th>Date & Time</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php if (!empty($stock_in_historys)): ?>
-                                                <?php foreach ($stock_in_historys as $history_item): ?>
+                                            <?php if (!empty($stock_in_history)): ?>
+                                                <?php foreach ($stock_in_history as $history_item): ?>
                                                     <tr>
                                                         <td><strong><?php echo htmlspecialchars($history_item['id']); ?></strong></td>
                                                         <td><?php echo htmlspecialchars($history_item['product_id']); ?></td>
@@ -927,9 +884,6 @@ $conn->close();
                             </div>
                         </div>
                     </div>
-                    <!-- / Content -->
-
-                    <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
                         <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
@@ -941,21 +895,13 @@ $conn->close();
                             </div>
                         </div>
                     </footer>
-                    <!-- / Footer -->
-
                     <div class="content-backdrop fade"></div>
                 </div>
-                <!-- Content wrapper -->
+                </div>
             </div>
-            <!-- / Layout page -->
-        </div>
 
-        <!-- Overlay -->
         <div class="layout-overlay layout-menu-toggle"></div>
     </div>
-    <!-- / Layout wrapper -->
-
-    <!-- Stock In Modal -->
     <div class="modal fade" id="stockInModal" tabindex="-1" aria-labelledby="stockInModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -968,22 +914,19 @@ $conn->close();
                 <form id="stockInForm" method="POST" action="stock-in.php">
                     <div class="modal-body">
                         <input type="hidden" name="action" value="stock_in_submit">
-                        <input type="hidden" id="modalProductId" name="product_id">
-
-                        <div class="row">
+                        <input type="hidden" id="modalProductId" name="product_id"> <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="modalProductSelect" class="form-label">
-                                        <i class="bx bx-package me-1"></i>Select Product
+                                        <i class="bx bx-package me-1"></i>Select Item
                                     </label>
                                     <select class="form-select" id="modalProductSelect" required>
                                         <option value="">-- Select an item --</option>
-                                        <?php foreach ($all_products as $item): ?>
-                                            <option value="<?php echo htmlspecialchars($item['id']); ?>"
-                                                    data-name="<?php echo htmlspecialchars($item['name']); ?>"
-                                                    data-description="<?php echo htmlspecialchars($item['description']); ?>"
-                                                    data-quantity="<?php echo htmlspecialchars($item['quantity']); ?>">
-                                                ID: <?php echo htmlspecialchars($item['id']); ?> - <?php echo htmlspecialchars($item['name']); ?>
+                                        <?php foreach ($all_items as $item): ?>
+                                            <option value="<?php echo htmlspecialchars($item['itemID']); ?>"
+                                                    data-product_name="<?php echo htmlspecialchars($item['product_name']); ?>"
+                                                    data-product_type="<?php echo htmlspecialchars($item['type_product'] ?? ''); ?>" data-stock="<?php echo htmlspecialchars($item['stock']); ?>">
+                                                ID: <?php echo htmlspecialchars($item['itemID']); ?> - <?php echo htmlspecialchars($item['product_name']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -991,7 +934,7 @@ $conn->close();
 
                                 <div class="mb-3">
                                     <label for="modalProductName" class="form-label">
-                                        <i class="bx bx-tag me-1"></i>Product Name
+                                        <i class="bx bx-tag me-1"></i>Item Name
                                     </label>
                                     <input type="text" class="form-control" id="modalProductName" readonly>
                                 </div>
@@ -1006,10 +949,10 @@ $conn->close();
 
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="modalProductDescription" class="form-label">
-                                        <i class="bx bx-text me-1"></i>Description
+                                    <label for="modalProductType" class="form-label">
+                                        <i class="bx bx-category me-1"></i>Product Type
                                     </label>
-                                    <textarea class="form-control" id="modalProductDescription" readonly rows="3"></textarea>
+                                    <input type="text" class="form-control" id="modalProductType" readonly>
                                 </div>
 
                                 <div class="mb-3">
@@ -1047,7 +990,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Confirmation Modal -->
     <div class="modal fade" id="confirmAddStockModal" tabindex="-1" aria-labelledby="confirmAddStockModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -1063,9 +1005,9 @@ $conn->close();
                             <i class="bx bx-error me-2"></i>
                             <strong>Please confirm this action:</strong>
                         </div>
-                        
+
                         <div class="confirmation-details">
-                            <h6>Product: <span id="confirmationProductName" class="text-primary"></span></h6>
+                            <h6>Item: <span id="confirmationProductName" class="text-primary"></span></h6>
                             <h6>Quantity to Add: <span id="confirmationQuantityAdded" class="text-success">+0</span></h6>
                             <p class="text-muted">This action cannot be undone easily.</p>
                         </div>
@@ -1083,7 +1025,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Core JS -->
     <script src="assets/vendor/libs/jquery/jquery.js"></script>
     <script src="assets/vendor/libs/popper/popper.js"></script>
     <script src="assets/vendor/js/bootstrap.js"></script>
@@ -1091,7 +1032,6 @@ $conn->close();
     <script src="assets/vendor/js/menu.js"></script>
     <script src="assets/js/main.js"></script>
 
-    <!-- Page JS -->
     <script>
     document.addEventListener('DOMContentLoaded', function () {
         initializeStockIn();
@@ -1104,9 +1044,9 @@ $conn->close();
         var confirmAddStockModal = new bootstrap.Modal(confirmAddStockModalElement);
 
         var modalProductSelect = stockInModalElement.querySelector('#modalProductSelect');
-        var modalProductIdInput = stockInModalElement.querySelector('#modalProductId');
+        var modalProductIdInput = stockInModalElement.querySelector('#modalProductId'); // Hidden input for product_id (now itemID)
         var modalProductNameInput = stockInModalElement.querySelector('#modalProductName');
-        var modalProductDescriptionInput = stockInModalElement.querySelector('#modalProductDescription');
+        var modalProductTypeInput = stockInModalElement.querySelector('#modalProductType'); // Product Type input
         var modalCurrentQuantityInput = stockInModalElement.querySelector('#modalCurrentQuantity');
         var modalQuantityAddedInput = stockInModalElement.querySelector('#modalQuantityAdded');
         var addStockButtonInModal = stockInModalElement.querySelector('#confirmAddStockBtn');
@@ -1117,34 +1057,36 @@ $conn->close();
 
         // Event listener for when the main stock-in modal is shown
         stockInModalElement.addEventListener('show.bs.modal', function () {
-            modalProductSelect.value = "";
-            updateModalDetails();
-            modalQuantityAddedInput.value = '';
+            modalProductSelect.value = ""; // Reset dropdown
+            updateModalDetails(); // Clear other fields
+            modalQuantityAddedInput.value = ''; // Clear quantity input
             setTimeout(function() {
-                modalProductSelect.focus();
+                modalProductSelect.focus(); // Focus on select
             }, 100);
         });
 
-        // Event listener for when a product is selected from the dropdown
+        // Event listener for when an item is selected from the dropdown
         modalProductSelect.addEventListener('change', updateModalDetails);
 
         function updateModalDetails() {
             var selectedOption = modalProductSelect.options[modalProductSelect.selectedIndex];
 
             if (selectedOption.value) {
-                var productId = selectedOption.value;
-                var productName = selectedOption.getAttribute('data-name');
-                var productDescription = selectedOption.getAttribute('data-description');
-                var currentQuantity = selectedOption.getAttribute('data-quantity');
+                var itemId = selectedOption.value;
+                // Get data from data-attributes
+                var itemName = selectedOption.getAttribute('data-product_name');
+                // Access 'data-product_type' (which stores 'type_product' from DB)
+                var itemType = selectedOption.getAttribute('data-product_type');
+                var currentStock = selectedOption.getAttribute('data-stock');
 
-                modalProductIdInput.value = productId;
-                modalProductNameInput.value = productName;
-                modalProductDescriptionInput.value = productDescription || 'N/A';
-                modalCurrentQuantityInput.value = currentQuantity;
+                modalProductIdInput.value = itemId;
+                modalProductNameInput.value = itemName;
+                modalProductTypeInput.value = itemType || 'N/A'; // Populate Product Type field
+                modalCurrentQuantityInput.value = currentStock;
             } else {
                 modalProductIdInput.value = '';
                 modalProductNameInput.value = '';
-                modalProductDescriptionInput.value = '';
+                modalProductTypeInput.value = ''; // Clear Product Type field
                 modalCurrentQuantityInput.value = '';
             }
 
@@ -1158,7 +1100,7 @@ $conn->close();
         // Event listener for the "Add Stock" button in the first modal
         addStockButtonInModal.addEventListener('click', function() {
             if (!modalProductSelect.value || modalQuantityAddedInput.value <= 0) {
-                showAlert('Please select a product and enter a valid quantity to add.', 'warning');
+                showAlert('Please select an item and enter a valid quantity to add.', 'warning');
                 return;
             }
 
@@ -1174,7 +1116,7 @@ $conn->close();
             // Show loading state
             finalConfirmButton.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i>Processing...';
             finalConfirmButton.disabled = true;
-            
+
             setTimeout(() => {
                 document.getElementById('stockInForm').submit();
             }, 500);
@@ -1186,7 +1128,7 @@ $conn->close();
             card.addEventListener('mouseenter', function() {
                 this.style.transform = 'translateY(-4px)';
             });
-            
+
             card.addEventListener('mouseleave', function() {
                 this.style.transform = 'translateY(-2px)';
             });
@@ -1250,7 +1192,7 @@ $conn->close();
     function clearSearch() {
         const tableBody = document.querySelector('.table tbody');
         const rows = tableBody.querySelectorAll('tr');
-        
+
         rows.forEach(row => {
             row.style.display = '';
             row.style.backgroundColor = '';
@@ -1266,10 +1208,10 @@ $conn->close();
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         `;
-        
+
         const container = document.querySelector('.container-xxl');
         container.insertBefore(alertDiv, container.firstChild);
-        
+
         // Auto-dismiss after 3 seconds
         setTimeout(() => {
             alertDiv.style.opacity = '0';
@@ -1287,7 +1229,7 @@ $conn->close();
             const stockInModal = new bootstrap.Modal(document.getElementById('stockInModal'));
             stockInModal.show();
         }
-        
+
         // Ctrl/Cmd + B for back to stock management
         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
             e.preventDefault();
@@ -1299,8 +1241,9 @@ $conn->close();
     document.getElementById('modalQuantityAdded').addEventListener('input', function() {
         const value = parseInt(this.value);
         const submitBtn = document.getElementById('confirmAddStockBtn');
-        
-        if (value > 0 && value <= 10000) {
+
+        // Basic validation: quantity must be positive and reasonable
+        if (value > 0 && value <= 10000) { // Max quantity of 10000 to prevent accidental huge inputs
             this.classList.remove('is-invalid');
             this.classList.add('is-valid');
             submitBtn.disabled = false;
