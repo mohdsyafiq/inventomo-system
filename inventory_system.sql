@@ -2,10 +2,10 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Host: localhost
--- Generation Time: Jun 22, 2025 at 02:39 PM
--- Server version: 10.4.28-MariaDB
--- PHP Version: 8.2.4
+-- Host: 127.0.0.1
+-- Generation Time: Jun 25, 2025 at 04:31 PM
+-- Server version: 10.4.32-MariaDB
+-- PHP Version: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -45,6 +45,33 @@ INSERT INTO `customers` (`id`, `name`, `address_line1`, `address_line2`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `customer_invoices`
+--
+
+CREATE TABLE `customer_invoices` (
+  `id` int(11) NOT NULL,
+  `invoice_number` varchar(255) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `invoice_date` date NOT NULL,
+  `total_amount` decimal(10,2) NOT NULL,
+  `status` enum('draft','unpaid','paid','cancelled') DEFAULT 'unpaid',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `customer_invoices`
+--
+
+INSERT INTO `customer_invoices` (`id`, `invoice_number`, `customer_id`, `invoice_date`, `total_amount`, `status`, `created_at`, `updated_at`) VALUES
+(5, 'INV-2025-010', 6, '2025-06-25', 75.26, 'unpaid', '2025-06-25 09:22:14', '2025-06-25 09:22:14'),
+(6, 'INV-2025-009', 6, '2025-06-25', 103.88, 'unpaid', '2025-06-25 10:09:19', '2025-06-25 10:09:19'),
+(7, 'INV-2025-100', 6, '2025-06-25', 1444.78, 'unpaid', '2025-06-25 10:26:09', '2025-06-25 10:26:09'),
+(8, 'INV-2025-110', 8, '2025-06-25', 18.02, 'unpaid', '2025-06-25 13:58:37', '2025-06-25 13:58:37');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `customer_supplier`
 --
 
@@ -75,9 +102,10 @@ CREATE TABLE `customer_supplier` (
 --
 
 INSERT INTO `customer_supplier` (`id`, `registrationID`, `firstName`, `lastName`, `companyName`, `email`, `phone`, `address`, `city`, `state`, `zipCode`, `country`, `registrationType`, `businessType`, `industry`, `dateRegistered`, `status`, `created_at`, `updated_at`) VALUES
-(4, 'CS001', 'Mohamad', 'Fauzi', 'glove', 'comtoh@gmail.com', '(601) 456-24483', 'jalan sendiri', 'Shah Alam', 'shah alam', '32500', 'SG', 'customer', '', '', '2025-06-08 14:58:03', 'active', '2025-06-08 14:58:03', '2025-06-08 16:04:25'),
-(5, 'SP001', 'mohd', 'Ahmad Fauzi', 'glove', 'sasa@gmail.com', '(601) 456-24483', 'jalan sendiri', 'Shah Alam', 'shah alam', '32500', 'SG', 'supplier', 'manufacturer', 'manufacturing', '2025-06-08 14:59:09', 'active', '2025-06-08 14:59:09', '2025-06-08 14:59:09'),
-(6, 'CS002', 'abu', 'ali', 'glove', 'admin@gmail.com', '(017) 599-3153', 'asas', 'Shah Alam', 'shah alam', '32500', 'MY', 'customer', '', '', '2025-06-12 12:54:57', 'active', '2025-06-12 12:54:57', '2025-06-12 12:54:57');
+(5, 'SP001', 'SYUKOR', 'AHMAD FAUZI', 'NIKEY SDN BHD', 'syukor@nikey.com.my', '(601) 456-24483', 'A-51-2, TINGKAT 2, BAGUNAN SENANDUNG, JALAN ISMAIL 2,', 'KOTA DAMANSARA', 'SELANGOR', '41000', 'MY', 'supplier', 'manufacturer', 'manufacturing', '2025-06-08 14:59:09', 'active', '2025-06-08 14:59:09', '2025-06-24 17:49:12'),
+(6, 'CS002', 'ABU YUSOF', 'ALIF', 'TOP GLOVE SDN BHD', 'abu@topglove.com.my', '(017) 599-3153', 'A-02-01, TINGKAT 2, BANGUNAN AMCORP,JALAN TUN RAZAK', 'CHERAS', 'KUALA LUMPUR', '56000', 'MY', 'customer', '', '', '2025-06-12 12:54:57', 'active', '2025-06-12 12:54:57', '2025-06-24 17:46:52'),
+(7, 'SP002', 'SYIKIN', 'ANUAR', 'KABEX SDN BHD', 'syikin@kabex.com.my', '(019) 992-8821', 'LOT551, LORONG JEBAT 3,SYEKSYEN 21', 'SHAH ALAM', 'SELANGOR', '40000', 'MY', 'supplier', 'distributor', 'technology', '2025-06-24 15:47:32', 'active', '2025-06-24 15:47:32', '2025-06-24 15:47:32'),
+(8, 'CS003', 'AH HONG', 'LING', 'PANDA HARDWARE', 'ahong@panda.com.my', '(018) 882-9922', 'LOT514, WISMA PERDANA, JALAN KUCHING 5/1', 'PUTRA HEIGHT', 'SELANGOR', '45000', 'MY', 'customer', '', '', '2025-06-25 13:52:39', 'active', '2025-06-25 13:52:39', '2025-06-25 13:52:39');
 
 -- --------------------------------------------------------
 
@@ -89,8 +117,10 @@ CREATE TABLE `inventory_item` (
   `itemID` int(11) NOT NULL,
   `product_name` varchar(255) NOT NULL,
   `type_product` varchar(25) NOT NULL,
-  `stock` int(11) NOT NULL,
+  `stock` int(11) NOT NULL DEFAULT 0,
   `price` varchar(25) NOT NULL,
+  `supplier_id` int(11) DEFAULT NULL,
+  `last_updated` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `image` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -98,15 +128,15 @@ CREATE TABLE `inventory_item` (
 -- Dumping data for table `inventory_item`
 --
 
-INSERT INTO `inventory_item` (`itemID`, `product_name`, `type_product`, `stock`, `price`, `image`) VALUES
-(23585, 'mesin', 'Electronic', 1000, '1020', ''),
-(26040, 'Kerusi urut', 'Electronic', 2, '1000', ''),
-(78110, 'mesin', 'Electronic', 100, '1000', '5b109c12eff384d888138c1aa35dad8d.jpg'),
-(89614, 'contoh', 'Accessories', 1000, '2001', 'ChatGPT Image May 6, 2025, 09_30_54 PM.png'),
-(93084, 'mesin', 'Accessories', 1, '1', ''),
-(93831, 'alala', 'Accessories', 10, '123456', ''),
-(95322, 'kerusi elektrik', 'Electronic', 2, '2000', ''),
-(98023, 'asdad', 'Accessories', 123, '15963', '');
+INSERT INTO `inventory_item` (`itemID`, `product_name`, `type_product`, `stock`, `price`, `supplier_id`, `last_updated`, `image`) VALUES
+(23585, 'PLUG 3 PIN', 'Electronic', 712, '3', NULL, '2025-06-25 10:25:08', ''),
+(26040, 'LED LAMP 18W 6FT', 'Electronic', 151, '8', NULL, '2025-06-25 10:09:19', ''),
+(75127, 'IPHONE 17 PRO MAX 516GB', 'Electronic', 222, '5999', NULL, '2025-06-25 13:54:19', ''),
+(78110, 'BATTERY 3A 4PCS EVEREADY', 'Electronic', 269, '6', NULL, '2025-06-25 13:58:37', '5b109c12eff384d888138c1aa35dad8d.jpg'),
+(89614, 'WATER HEATER 12L SINGER', 'Kitchen', 64, '59', NULL, '2025-06-25 10:26:09', 'ChatGPT Image May 6, 2025, 09_30_54 PM.png'),
+(93084, 'CAR JUMPER 6GAUGE 5MTR', 'Accessories', 100, '45', NULL, '2025-06-25 10:26:09', ''),
+(93831, 'TEST PEN STANLEY 65MM', 'Electronic', 169, '11', NULL, '2025-06-25 13:58:37', ''),
+(95322, 'WASHING MACHINE 15L SAMSUNG', 'Electronic', 27, '899', NULL, '2025-06-25 10:26:09', '');
 
 -- --------------------------------------------------------
 
@@ -124,15 +154,6 @@ CREATE TABLE `invoices` (
   `status` varchar(50) NOT NULL DEFAULT 'Pending'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `invoices`
---
-
-INSERT INTO `invoices` (`id`, `customer_id`, `invoice_number`, `date_issued`, `date_due`, `notes`, `status`) VALUES
-(7, 2, 'INV-20250621-064529', '2025-06-21', '2025-07-05', '', 'rejected'),
-(9, 2, 'INV-20250621-065420', '2025-06-21', '2025-07-05', '', 'approved'),
-(10, 2, 'INV-20250621-070258', '2025-06-21', '2025-07-05', '', 'approved');
-
 -- --------------------------------------------------------
 
 --
@@ -142,19 +163,28 @@ INSERT INTO `invoices` (`id`, `customer_id`, `invoice_number`, `date_issued`, `d
 CREATE TABLE `invoice_items` (
   `id` int(11) NOT NULL,
   `invoice_id` int(11) NOT NULL,
-  `product_id` int(11) NOT NULL,
+  `item_id` int(11) NOT NULL,
+  `item_name` varchar(255) NOT NULL,
   `quantity` int(11) NOT NULL,
-  `price_at_purchase` decimal(10,2) NOT NULL
+  `sale_price` decimal(10,2) NOT NULL,
+  `line_total` decimal(10,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `invoice_items`
 --
 
-INSERT INTO `invoice_items` (`id`, `invoice_id`, `product_id`, `quantity`, `price_at_purchase`) VALUES
-(3, 7, 2, 1, 6500.00),
-(5, 9, 3, 1, 3500.00),
-(6, 10, 3, 1, 3500.00);
+INSERT INTO `invoice_items` (`id`, `invoice_id`, `item_id`, `item_name`, `quantity`, `sale_price`, `line_total`, `created_at`) VALUES
+(9, 5, 78110, 'BATTERY 3A 4PCS EVEREADY', 2, 6.00, 12.00, '2025-06-25 09:22:14'),
+(10, 5, 89614, 'WATER HEATER 12L SINGER', 1, 59.00, 59.00, '2025-06-25 09:22:14'),
+(11, 6, 93084, 'CAR JUMPER 6GAUGE 5MTR', 2, 45.00, 90.00, '2025-06-25 10:09:19'),
+(12, 6, 26040, 'LED LAMP 18W 6FT', 1, 8.00, 8.00, '2025-06-25 10:09:19'),
+(13, 7, 93084, 'CAR JUMPER 6GAUGE 5MTR', 9, 45.00, 405.00, '2025-06-25 10:26:09'),
+(14, 7, 89614, 'WATER HEATER 12L SINGER', 1, 59.00, 59.00, '2025-06-25 10:26:09'),
+(15, 7, 95322, 'WASHING MACHINE 15L SAMSUNG', 1, 899.00, 899.00, '2025-06-25 10:26:09'),
+(16, 8, 93831, 'TEST PEN STANLEY 65MM', 1, 11.00, 11.00, '2025-06-25 13:58:37'),
+(17, 8, 78110, 'BATTERY 3A 4PCS EVEREADY', 1, 6.00, 6.00, '2025-06-25 13:58:37');
 
 -- --------------------------------------------------------
 
@@ -165,18 +195,21 @@ INSERT INTO `invoice_items` (`id`, `invoice_id`, `product_id`, `quantity`, `pric
 CREATE TABLE `products` (
   `id` int(11) NOT NULL,
   `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
   `price` decimal(10,2) NOT NULL,
-  `stock_quantity` int(11) NOT NULL DEFAULT 0
+  `quantity` int(11) NOT NULL DEFAULT 0,
+  `supplier_id` int(11) DEFAULT NULL,
+  `last_updated` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `products`
 --
 
-INSERT INTO `products` (`id`, `name`, `price`, `stock_quantity`) VALUES
-(1, 'Peti Ais Toshiba', 5000.00, 0),
-(2, 'Kerusi urut Thailand', 6500.00, 0),
-(3, 'LG Mesin Basuh', 3500.00, 0);
+INSERT INTO `products` (`id`, `name`, `description`, `price`, `quantity`, `supplier_id`, `last_updated`) VALUES
+(1, 'Peti Ais Toshiba', NULL, 5000.00, 0, NULL, NULL),
+(2, 'Kerusi urut Thailand', NULL, 6500.00, 0, NULL, NULL),
+(3, 'LG Mesin Basuh', NULL, 3500.00, 0, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -187,7 +220,6 @@ INSERT INTO `products` (`id`, `name`, `price`, `stock_quantity`) VALUES
 CREATE TABLE `purchase_orders` (
   `id` int(11) NOT NULL,
   `supplier_id` int(11) NOT NULL,
-  `customer_id` int(11) DEFAULT NULL,
   `po_number` varchar(50) DEFAULT NULL,
   `date_ordered` date NOT NULL,
   `date_expected` date DEFAULT NULL,
@@ -201,15 +233,10 @@ CREATE TABLE `purchase_orders` (
 -- Dumping data for table `purchase_orders`
 --
 
-INSERT INTO `purchase_orders` (`id`, `supplier_id`, `customer_id`, `po_number`, `date_ordered`, `date_expected`, `notes`, `status`, `total_amount`, `created_at`) VALUES
-(7, 5, NULL, 'PO-20250621-050651', '2025-06-21', '2025-06-28', '', 'Pending', 3710.00, '2025-06-21 03:07:02'),
-(8, 5, NULL, 'PO-20250621-050717', '2025-06-21', '2025-06-28', '', 'Pending', 6890.00, '2025-06-21 03:07:24'),
-(9, 5, NULL, 'PO-20250622-062405', '2025-06-22', '2025-06-29', '', 'Pending', 3710.00, '2025-06-22 04:24:28'),
-(10, 5, NULL, 'PO-20250622-062445', '2025-06-22', '2025-06-29', '', 'Pending', 6890.00, '2025-06-22 04:24:53'),
-(11, 5, NULL, 'PO-20250622-062537', '2025-06-22', '2025-06-29', '', 'Pending', 3710.00, '2025-06-22 04:25:57'),
-(12, 5, NULL, 'PO-20250622-063329', '2025-06-22', '2025-06-29', '', 'Pending', 10600.00, '2025-06-22 04:33:59'),
-(13, 5, NULL, 'PO-20250622-064221', '2025-06-22', '2025-06-29', '', 'Pending', 6890.00, '2025-06-22 04:43:14'),
-(14, 5, NULL, 'PO-20250622-064319', '2025-06-22', '2025-06-29', '', 'Pending', 3710.00, '2025-06-22 04:46:08');
+INSERT INTO `purchase_orders` (`id`, `supplier_id`, `po_number`, `date_ordered`, `date_expected`, `notes`, `status`, `total_amount`, `created_at`) VALUES
+(78, 5, 'PO-2024-026', '2025-06-25', NULL, NULL, 'pending', 95.40, '2025-06-25 05:04:22'),
+(79, 7, 'PO-20250624-023', '2025-06-25', NULL, NULL, 'pending', 233.20, '2025-06-25 05:05:22'),
+(81, 7, 'PO-20250622-2', '2025-06-25', NULL, NULL, 'pending', 108.12, '2025-06-25 10:25:08');
 
 -- --------------------------------------------------------
 
@@ -220,25 +247,76 @@ INSERT INTO `purchase_orders` (`id`, `supplier_id`, `customer_id`, `po_number`, 
 CREATE TABLE `purchase_order_items` (
   `id` int(11) NOT NULL,
   `purchase_order_id` int(11) NOT NULL,
-  `product_id` int(11) NOT NULL,
+  `item_id` int(11) NOT NULL,
   `quantity` int(11) NOT NULL,
-  `cost_price` decimal(10,2) NOT NULL
+  `cost_price` decimal(10,2) NOT NULL,
+  `item_name` varchar(255) NOT NULL,
+  `line_total` decimal(10,2) NOT NULL DEFAULT 0.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `purchase_order_items`
 --
 
-INSERT INTO `purchase_order_items` (`id`, `purchase_order_id`, `product_id`, `quantity`, `cost_price`) VALUES
-(1, 7, 3, 1, 3500.00),
-(2, 8, 2, 1, 6500.00),
-(3, 9, 3, 1, 3500.00),
-(4, 10, 2, 1, 6500.00),
-(5, 11, 3, 1, 3500.00),
-(6, 12, 3, 1, 3500.00),
-(7, 12, 2, 1, 6500.00),
-(8, 13, 2, 1, 6500.00),
-(9, 14, 3, 1, 3500.00);
+INSERT INTO `purchase_order_items` (`id`, `purchase_order_id`, `item_id`, `quantity`, `cost_price`, `item_name`, `line_total`) VALUES
+(68, 78, 93084, 2, 45.00, 'CAR JUMPER 6GAUGE 5MTR', 90.00),
+(69, 79, 93831, 20, 11.00, 'TEST PEN STANLEY 65MM', 220.00),
+(73, 81, 93084, 2, 45.00, 'CAR JUMPER 6GAUGE 5MTR', 90.00),
+(74, 81, 23585, 4, 3.00, 'PLUG 3 PIN', 12.00);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `stock_in_history`
+--
+
+CREATE TABLE `stock_in_history` (
+  `id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `quantity_added` int(11) NOT NULL,
+  `username` varchar(100) NOT NULL,
+  `transaction_date` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `stock_in_history`
+--
+
+INSERT INTO `stock_in_history` (`id`, `product_id`, `product_name`, `quantity_added`, `username`, `transaction_date`) VALUES
+(1, 93831, 'alala', 155, 'abu', '2025-06-24 15:09:31'),
+(2, 78110, 'BATTERY 3A 4PCS EVEREADY', 30, 'RAFIZ', '2025-06-24 15:22:23'),
+(3, 78110, 'BATTERY 3A 4PCS EVEREADY', 100, 'RAFIZ', '2025-06-24 15:23:30'),
+(4, 23585, 'PLUG 3 PIN', 9, 'RAFIZ', '2025-06-24 15:23:48'),
+(5, 26040, 'LED LAMP 18W 6FT', 30, 'RAFIZ', '2025-06-25 04:35:13'),
+(6, 75127, 'IPHONE 17 PRO MAX 516GB', 12, 'RAFIZ', '2025-06-25 13:48:30');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `stock_out_history`
+--
+
+CREATE TABLE `stock_out_history` (
+  `id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `quantity_deducted` int(11) NOT NULL,
+  `username` varchar(100) NOT NULL,
+  `transaction_date` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `stock_out_history`
+--
+
+INSERT INTO `stock_out_history` (`id`, `product_id`, `product_name`, `quantity_deducted`, `username`, `transaction_date`) VALUES
+(1, 23585, 'PLUG 3 PIN', 10, 'RAFIZ', '2025-06-24 17:06:23'),
+(2, 23585, 'PLUG 3 PIN', 10, 'RAFIZ', '2025-06-24 17:06:42'),
+(3, 93831, 'TEST PEN STANLEY 65MM', 10, 'RAFIZ', '2025-06-24 17:08:42'),
+(4, 23585, 'PLUG 3 PIN', 300, 'RAFIZ', '2025-06-24 17:29:07'),
+(5, 89614, 'WATER HEATER 12L SINGER', 1, 'RAFIZ', '2025-06-25 04:35:23'),
+(6, 75127, 'IPHONE 17 PRO MAX 516GB', 10, 'RAFIZ', '2025-06-25 13:50:47');
 
 -- --------------------------------------------------------
 
@@ -333,7 +411,7 @@ CREATE TABLE `user_profiles` (
 --
 
 INSERT INTO `user_profiles` (`Id`, `date_join`, `full_name`, `email`, `phone_no`, `username`, `password`, `position`, `profile_picture`, `active`, `created_at`) VALUES
-('AB0001', '2025-05-22', 'abu', 'sasa@gmail.com', '11111111', 'aaaa', '$2y$10$fDAAQSCejWP1xmPq/LhNGOTyFWfmCbBb6S/yxcJb6n.GH2h9pvQFa', 'user', 'default.jpg', 0, '2025-05-22 12:30:15'),
+('AB0001', '2025-05-22', 'RAFIZ', 'rafiz@gmail.com', '0179761702', 'rafiz', '$2y$10$fa138javsOCo.RknSLcfJ.BBdYvuCdwl7bh6y8hnTWtZ3VtcBIA2e', 'admin', 'default.jpg', 1, '2025-05-22 12:30:15'),
 ('AB0002', '2025-05-22', 'Zubair', 'admin@gmail.com', '0172343123', 'zubair', '$2y$10$U/wRSsl8uXyviGwYXPnAluiZU6VUmUXvmi.nJRfb877NIuNQ9Wgjy', 'user', 'default.jpg', 1, '2025-05-22 12:43:28'),
 ('AB0003', '2025-05-22', 'Test User', 'test8523@example.com', '1234567890', 'testuser602', 'password123', 'user', 'default.jpg', 1, '2025-05-22 12:44:39'),
 ('AB0007', '2025-05-26', 'aaasdad', 'aaaq@yahoo.com', '1234567890', 'asda', '123456', 'moderator', 'default.jpg', 1, '2025-05-26 08:55:43'),
@@ -350,6 +428,14 @@ INSERT INTO `user_profiles` (`Id`, `date_join`, `full_name`, `email`, `phone_no`
 --
 ALTER TABLE `customers`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `customer_invoices`
+--
+ALTER TABLE `customer_invoices`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `invoice_number` (`invoice_number`),
+  ADD KEY `customer_id` (`customer_id`);
 
 --
 -- Indexes for table `customer_supplier`
@@ -378,7 +464,7 @@ ALTER TABLE `invoices`
 ALTER TABLE `invoice_items`
   ADD PRIMARY KEY (`id`),
   ADD KEY `invoice_id` (`invoice_id`),
-  ADD KEY `product_id` (`product_id`);
+  ADD KEY `item_id` (`item_id`);
 
 --
 -- Indexes for table `products`
@@ -398,8 +484,21 @@ ALTER TABLE `purchase_orders`
 --
 ALTER TABLE `purchase_order_items`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_po_item` (`purchase_order_id`,`item_id`),
   ADD KEY `purchase_order_id` (`purchase_order_id`),
-  ADD KEY `product_id` (`product_id`);
+  ADD KEY `product_id` (`item_id`);
+
+--
+-- Indexes for table `stock_in_history`
+--
+ALTER TABLE `stock_in_history`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `stock_out_history`
+--
+ALTER TABLE `stock_out_history`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `suppliers`
@@ -435,16 +534,16 @@ ALTER TABLE `user_profiles`
 --
 
 --
--- AUTO_INCREMENT for table `customers`
+-- AUTO_INCREMENT for table `customer_invoices`
 --
-ALTER TABLE `customers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+ALTER TABLE `customer_invoices`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `customer_supplier`
 --
 ALTER TABLE `customer_supplier`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `inventory_item`
@@ -462,7 +561,7 @@ ALTER TABLE `invoices`
 -- AUTO_INCREMENT for table `invoice_items`
 --
 ALTER TABLE `invoice_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -474,13 +573,25 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `purchase_orders`
 --
 ALTER TABLE `purchase_orders`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=83;
 
 --
 -- AUTO_INCREMENT for table `purchase_order_items`
 --
 ALTER TABLE `purchase_order_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=77;
+
+--
+-- AUTO_INCREMENT for table `stock_in_history`
+--
+ALTER TABLE `stock_in_history`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `stock_out_history`
+--
+ALTER TABLE `stock_out_history`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `suppliers`
@@ -505,6 +616,12 @@ ALTER TABLE `supplier_bill_items`
 --
 
 --
+-- Constraints for table `customer_invoices`
+--
+ALTER TABLE `customer_invoices`
+  ADD CONSTRAINT `customer_invoices_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customer_supplier` (`id`);
+
+--
 -- Constraints for table `invoices`
 --
 ALTER TABLE `invoices`
@@ -514,8 +631,8 @@ ALTER TABLE `invoices`
 -- Constraints for table `invoice_items`
 --
 ALTER TABLE `invoice_items`
-  ADD CONSTRAINT `items_fk_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `items_fk_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`);
+  ADD CONSTRAINT `invoice_items_ibfk_1` FOREIGN KEY (`invoice_id`) REFERENCES `customer_invoices` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `invoice_items_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `inventory_item` (`itemID`);
 
 --
 -- Constraints for table `purchase_orders`
@@ -527,8 +644,8 @@ ALTER TABLE `purchase_orders`
 -- Constraints for table `purchase_order_items`
 --
 ALTER TABLE `purchase_order_items`
-  ADD CONSTRAINT `purchase_order_items_ibfk_1` FOREIGN KEY (`purchase_order_id`) REFERENCES `purchase_orders` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `purchase_order_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`);
+  ADD CONSTRAINT `fk_purchase_item` FOREIGN KEY (`item_id`) REFERENCES `inventory_item` (`itemID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `purchase_order_items_ibfk_1` FOREIGN KEY (`purchase_order_id`) REFERENCES `purchase_orders` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `supplier_bills`
