@@ -249,7 +249,8 @@ $conn->close();
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
     <!-- Icons -->
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
     <!-- Core CSS -->
@@ -263,88 +264,135 @@ $conn->close();
     <script src="assets/js/config.js"></script>
 
     <style>
-        /* General Layout & Colors (consistent with previous versions) */
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 14px;
-            color: white;
-            position: relative;
-            flex-shrink: 0;
-        }
-        .user-avatar img {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            object-fit: cover;
-        }
-        /* Online Status Indicator (optional, adapt if needed) */
-        .user-avatar::after {
-            content: '';
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            width: 12px;
-            height: 12px;
-            background-color: #10b981; /* Green color for online */
-            border: 2px solid white;
-            border-radius: 50%;
-        }
-        /* Card Styles */
-        .stats-card {
-            border-left: 4px solid #ff6b35; /* Orange for stock out related stats */
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
-        }
-        .stats-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0.5rem 1rem rgba(161, 172, 184, 0.2);
-        }
-        /* Loading spinner for buttons */
-        .loading-spinner {
-            display: none; /* Hidden by default */
-        }
-        /* Search highlight for table */
-        .search-highlight {
-            background-color: #fff3cd; /* Light yellow background */
-            padding: 2px 4px;
-            border-radius: 3px;
-        }
-        /* Custom styles for profile links in dropdown */
-        .profile-link {
-            text-decoration: none;
-            color: inherit;
-        }
-        .profile-link:hover {
-            color: inherit;
-            background-color: #f8f9fa; /* Light background on hover */
-        }
-        .dropdown-item .d-flex {
-            align-items: center;
-        }
-        .dropdown-item .flex-grow-1 {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        /* Alert animations */
-        .alert {
-            animation: fadeInDown 0.5s ease;
-        }
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
+    /* General Layout & Colors (consistent with previous versions) */
+    .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 14px;
+        color: white;
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    /* Online Status Indicator (optional, adapt if needed) */
+    .user-avatar::after {
+        content: '';
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        width: 12px;
+        height: 12px;
+        background-color: #10b981;
+        /* Green color for online */
+        border: 2px solid white;
+        border-radius: 50%;
+    }
+
+    /* Card Styles */
+    .stats-card {
+        border-left: 4px solid #ff6b35;
+        /* Orange for stock out related stats */
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(161, 172, 184, 0.2);
+    }
+
+    /* Loading spinner for buttons */
+    .loading-spinner {
+        display: none;
+        /* Hidden by default */
+    }
+
+    /* Search highlight for table */
+    .search-highlight {
+        background-color: #fff3cd;
+        /* Light yellow background */
+        padding: 2px 4px;
+        border-radius: 3px;
+    }
+
+    /* Custom styles for profile links in dropdown */
+    .profile-link {
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .profile-link:hover {
+        color: inherit;
+        background-color: #f8f9fa;
+        /* Light background on hover */
+    }
+
+    .dropdown-item .d-flex {
+        align-items: center;
+    }
+
+    .dropdown-item .flex-grow-1 {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    /* Alert animations */
+    .alert {
+        animation: fadeInDown 0.5s ease;
+    }
+
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
         }
 
-        /* Specific for Stock Out Modal details display */
-        #productDetailsSection {
-            display: none; /* Hidden by default until a product is selected */
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
+    }
+
+    /* Specific for Stock Out Modal details display */
+    #productDetailsSection {
+        display: none;
+        /* Hidden by default until a product is selected */
+    }
+
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+            url('assets/img/backgrounds/inside-background.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        min-height: 100vh;
+    }
+
+    /* Ensure layout wrapper takes full space */
+    .layout-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    /* Content wrapper with transparent background to show body background */
+    .content-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
     </style>
 </head>
 
@@ -361,7 +409,8 @@ $conn->close();
                         </span>
                     </a>
 
-                    <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
+                    <a href="javascript:void(0);"
+                        class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
                         <i class="bx bx-chevron-left bx-sm align-middle"></i>
                     </a>
                 </div>
@@ -424,7 +473,8 @@ $conn->close();
             <!-- / Menu -->
 
             <div class="layout-page">
-                <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme">
+                <nav
+                    class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme">
                     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
                         <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)">
                             <i class="bx bx-menu bx-sm"></i>
@@ -435,45 +485,60 @@ $conn->close();
                             <div class="nav-item d-flex align-items-center">
                                 <i class="bx bx-search fs-4 lh-0"></i>
                                 <input type="text" id="navbarSearch" class="form-control border-0 shadow-none"
-                                            placeholder="Search history..." />
+                                    placeholder="Search history..." />
                             </div>
                         </div>
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
-                                <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
+                                <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
+                                    data-bs-toggle="dropdown">
                                     <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                         <?php if ($user_avatar_url): ?>
-                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="Profile Picture">
+                                        <img src="<?php echo htmlspecialchars($user_avatar_url); ?>"
+                                            alt="Profile Picture">
                                         <?php else: ?>
-                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item profile-link" href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>">
+                                        <a class="dropdown-item profile-link"
+                                            href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>">
                                             <div class="d-flex">
                                                 <div class="flex-shrink-0 me-3">
-                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <div
+                                                        class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                                         <?php if ($user_avatar_url): ?>
-                                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="Profile Picture">
+                                                        <img src="<?php echo htmlspecialchars($user_avatar_url); ?>"
+                                                            alt="Profile Picture">
                                                         <?php else: ?>
-                                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
                                                 <div class="flex-grow-1">
-                                                    <span class="fw-semibold d-block"><?php echo htmlspecialchars($current_user_name); ?></span>
-                                                    <small class="text-muted"><?php echo htmlspecialchars(ucfirst($current_user_role)); ?></small>
+                                                    <span
+                                                        class="fw-semibold d-block"><?php echo htmlspecialchars($current_user_name); ?></span>
+                                                    <small
+                                                        class="text-muted"><?php echo htmlspecialchars(ucfirst($current_user_role)); ?></small>
                                                 </div>
                                             </div>
                                         </a>
                                     </li>
-                                    <li><div class="dropdown-divider"></div></li>
-                                    <li><a class="dropdown-item" href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>"><i class="bx bx-user me-2"></i> My Profile</a></li>
-                                    <li><a class="dropdown-item" href="user-settings.php"><i class="bx bx-cog me-2"></i> Settings</a></li>
-                                    <li><div class="dropdown-divider"></div></li>
-                                    <li><a class="dropdown-item" href="logout.php"><i class="bx bx-power-off me-2"></i> Log Out</a></li>
+                                    <li>
+                                        <div class="dropdown-divider"></div>
+                                    </li>
+                                    <li><a class="dropdown-item"
+                                            href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>"><i
+                                                class="bx bx-user me-2"></i> My Profile</a></li>
+                                    <li><a class="dropdown-item" href="user-settings.php"><i class="bx bx-cog me-2"></i>
+                                            Settings</a></li>
+                                    <li>
+                                        <div class="dropdown-divider"></div>
+                                    </li>
+                                    <li><a class="dropdown-item" href="logout.php"><i class="bx bx-power-off me-2"></i>
+                                            Log Out</a></li>
                                 </ul>
                             </li>
                         </ul>
@@ -483,7 +548,8 @@ $conn->close();
                 <div class="content-wrapper">
                     <div class="container-xxl flex-grow-1 container-p-y">
                         <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h4 class="fw-bold"><span class="text-muted fw-light">Stock Management /</span> Stock Out</h4>
+                            <h4 class="fw-bold"><span class="text-muted fw-light">Stock Management /</span> Stock Out
+                            </h4>
                             <div class="d-flex gap-2">
                             </div>
                         </div>
@@ -497,7 +563,8 @@ $conn->close();
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <h5 class="card-title mb-1">Total Stock Out Transactions</h5>
-                                                <h3 class="text-primary mb-0"><?php echo number_format($total_transactions); ?></h3>
+                                                <h3 class="text-primary mb-0">
+                                                    <?php echo number_format($total_transactions); ?></h3>
                                             </div>
                                             <div class="avatar">
                                                 <span class="avatar-initial rounded bg-label-primary">
@@ -514,7 +581,8 @@ $conn->close();
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <h5 class="card-title mb-1">Total Quantity Deducted</h5>
-                                                <h3 class="text-warning mb-0"><?php echo number_format($total_quantity_deducted); ?></h3>
+                                                <h3 class="text-warning mb-0">
+                                                    <?php echo number_format($total_quantity_deducted); ?></h3>
                                             </div>
                                             <div class="avatar">
                                                 <span class="avatar-initial rounded bg-label-warning">
@@ -530,11 +598,13 @@ $conn->close();
                         <div class="card mb-4">
                             <h5 class="card-header d-flex justify-content-between align-items-center">
                                 <span>Stock Out Actions</span>
-                                <small class="text-muted">Logged in as: <?php echo htmlspecialchars($current_user_name); ?></small>
+                                <small class="text-muted">Logged in as:
+                                    <?php echo htmlspecialchars($current_user_name); ?></small>
                             </h5>
                             <div class="card-body">
                                 <div class="d-flex flex-wrap gap-2 mb-3">
-                                    <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#stockOutModal">
+                                    <button type="button" class="btn btn-warning" data-bs-toggle="modal"
+                                        data-bs-target="#stockOutModal">
                                         <i class="bx bx-minus-circle me-1"></i> Deduct Stock
                                     </button>
                                     <!-- Added "Back to Stock Management" button here -->
@@ -548,7 +618,8 @@ $conn->close();
                                 <div class="alert alert-info d-flex align-items-center" role="alert">
                                     <i class="bx bx-info-circle me-2"></i>
                                     <div>
-                                        <strong>Quick Actions:</strong> Press <kbd>Ctrl + B</kbd> to go back to stock management.
+                                        <strong>Quick Actions:</strong> Press <kbd>Ctrl + B</kbd> to go back to stock
+                                        management.
                                     </div>
                                 </div>
                             </div>
@@ -572,43 +643,49 @@ $conn->close();
                                     </thead>
                                     <tbody class="table-border-bottom-0">
                                         <?php if (!empty($stock_out_history)): ?>
-                                            <?php foreach ($stock_out_history as $history_item): ?>
-                                            <tr>
-                                                <td><span class="badge bg-label-secondary">#<?php echo htmlspecialchars($history_item['id']); ?></span></td>
-                                                <td>
-                                                    <div>
-                                                        <strong><?php echo htmlspecialchars($history_item['product_name']); ?></strong>
-                                                        <br><small class="text-muted">ID: <?php echo htmlspecialchars($history_item['product_id']); ?></small>
+                                        <?php foreach ($stock_out_history as $history_item): ?>
+                                        <tr>
+                                            <td><span
+                                                    class="badge bg-label-secondary">#<?php echo htmlspecialchars($history_item['id']); ?></span>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    <strong><?php echo htmlspecialchars($history_item['product_name']); ?></strong>
+                                                    <br><small class="text-muted">ID:
+                                                        <?php echo htmlspecialchars($history_item['product_id']); ?></small>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-label-warning">
+                                                    -<?php echo htmlspecialchars($history_item['quantity_deducted']); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor('user'); ?> me-2"
+                                                        style="width: 30px; height: 30px; font-size: 12px;">
+                                                        <?php echo strtoupper(substr($history_item['username'], 0, 1)); ?>
                                                     </div>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-label-warning">
-                                                        -<?php echo htmlspecialchars($history_item['quantity_deducted']); ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="user-avatar bg-label-<?php echo getAvatarColor('user'); ?> me-2" style="width: 30px; height: 30px; font-size: 12px;">
-                                                            <?php echo strtoupper(substr($history_item['username'], 0, 1)); ?>
-                                                        </div>
-                                                        <?php echo htmlspecialchars($history_item['username']); ?>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <small>
-                                                        <?php echo date('M j, Y', strtotime($history_item['transaction_date'])); ?><br>
-                                                        <span class="text-muted"><?php echo date('g:i A', strtotime($history_item['transaction_date'])); ?></span>
-                                                    </small>
-                                                </td>
-                                            </tr>
-                                            <?php endforeach; ?>
+                                                    <?php echo htmlspecialchars($history_item['username']); ?>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <small>
+                                                    <?php echo date('M j, Y', strtotime($history_item['transaction_date'])); ?><br>
+                                                    <span
+                                                        class="text-muted"><?php echo date('g:i A', strtotime($history_item['transaction_date'])); ?></span>
+                                                </small>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
                                         <?php else: ?>
                                         <tr>
                                             <td colspan="5" class="text-center py-4">
                                                 <div class="d-flex flex-column align-items-center">
                                                     <i class="bx bx-package display-4 text-muted mb-2"></i>
                                                     <p class="text-muted mb-0">No stock out transactions found</p>
-                                                    <small class="text-muted">Start by deducting stock from your inventory</small>
+                                                    <small class="text-muted">Start by deducting stock from your
+                                                        inventory</small>
                                                 </div>
                                             </td>
                                         </tr>
@@ -647,16 +724,19 @@ $conn->close();
 
                         <div class="row">
                             <div class="col-12 mb-3">
-                                <label for="modalProductSelect" class="form-label"><i class="bx bx-package me-1"></i>Select Item *</label>
+                                <label for="modalProductSelect" class="form-label"><i
+                                        class="bx bx-package me-1"></i>Select Item *</label>
                                 <select class="form-select" id="modalProductSelect" required>
                                     <option value="">-- Select an item with available stock --</option>
                                     <?php foreach ($all_items as $item): ?>
-                                        <option value="<?php echo htmlspecialchars($item['itemID']); ?>"
-                                                data-product_name="<?php echo htmlspecialchars($item['product_name']); ?>"
-                                                data-type_product="<?php echo htmlspecialchars($item['type_product'] ?? ''); ?>"
-                                                data-stock="<?php echo htmlspecialchars($item['stock']); ?>">
-                                            ID: <?php echo htmlspecialchars($item['itemID']); ?> - <?php echo htmlspecialchars($item['product_name']); ?> (Current Stock: <?php echo htmlspecialchars($item['stock']); ?>)
-                                        </option>
+                                    <option value="<?php echo htmlspecialchars($item['itemID']); ?>"
+                                        data-product_name="<?php echo htmlspecialchars($item['product_name']); ?>"
+                                        data-type_product="<?php echo htmlspecialchars($item['type_product'] ?? ''); ?>"
+                                        data-stock="<?php echo htmlspecialchars($item['stock']); ?>">
+                                        ID: <?php echo htmlspecialchars($item['itemID']); ?> -
+                                        <?php echo htmlspecialchars($item['product_name']); ?> (Current Stock:
+                                        <?php echo htmlspecialchars($item['stock']); ?>)
+                                    </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -680,7 +760,8 @@ $conn->close();
                                 <label for="modalQuantityDeducted" class="form-label">Quantity to Deduct *</label>
                                 <input type="number" class="form-control" id="modalQuantityDeducted"
                                     name="quantity_deducted" min="1" required>
-                                <div class="invalid-feedback">Quantity must be greater than 0 and not exceed current stock.</div>
+                                <div class="invalid-feedback">Quantity must be greater than 0 and not exceed current
+                                    stock.</div>
                             </div>
                             <div class="col-12 mb-3">
                                 <label class="form-label">Remaining Stock (After Deduction)</label>
@@ -702,7 +783,8 @@ $conn->close();
         </div>
     </div>
 
-    <div class="modal fade" id="confirmDeductStockModal" tabindex="-1" aria-labelledby="confirmDeductStockModalLabel" aria-hidden="true">
+    <div class="modal fade" id="confirmDeductStockModal" tabindex="-1" aria-labelledby="confirmDeductStockModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -745,7 +827,8 @@ $conn->close();
                         <i class="bx bx-x me-1"></i> Cancel
                     </button>
                     <button type="button" class="btn btn-danger" id="finalConfirmDeductStockBtn">
-                        <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status"
+                            aria-hidden="true"></span>
                         <i class="bx bx-check me-1"></i> Confirm Deduction
                     </button>
                 </div>
@@ -792,16 +875,19 @@ $conn->close();
 
         // Function to show custom alerts (replaces browser's alert())
         function showAlert(message, type = 'info') {
-            const alertContainer = document.querySelector('.container-xxl .d-flex.justify-content-between.align-items-center.mb-4').parentNode;
+            const alertContainer = document.querySelector(
+                '.container-xxl .d-flex.justify-content-between.align-items-center.mb-4').parentNode;
             const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show mt-3`; // Added mt-3 for spacing
+            alertDiv.className =
+            `alert alert-${type} alert-dismissible fade show mt-3`; // Added mt-3 for spacing
             alertDiv.innerHTML = `
                 <i class="bx bx-info-circle me-2"></i>
                 <div>${message}</div>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             `;
             // Insert after the page header
-            alertContainer.insertBefore(alertDiv, alertContainer.children[1]); // Assuming first child is header, second is message container
+            alertContainer.insertBefore(alertDiv, alertContainer.children[
+            1]); // Assuming first child is header, second is message container
 
             // Auto-dismiss after 5 seconds
             setTimeout(() => {
@@ -851,8 +937,10 @@ $conn->close();
                         }
 
                         if (searchTerm.length > 0) {
-                            var regex = new RegExp('(' + searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-                            cell.innerHTML = originalHtml.replace(regex, '<span class="search-highlight">$1</span>');
+                            var regex = new RegExp('(' + searchTerm.replace(
+                                /[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                            cell.innerHTML = originalHtml.replace(regex,
+                                '<span class="search-highlight">$1</span>');
                         } else {
                             cell.innerHTML = originalHtml;
                         }
