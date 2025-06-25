@@ -1,7 +1,7 @@
 <?php
 // create-invoice.php
 // This page handles the creation of bills received from suppliers.
-
+// Testing-1
 // --- IMPORTANT: DATABASE SCHEMA ---
 // This code assumes you have the 'supplier_bills' and 'supplier_bill_items' tables.
 /*
