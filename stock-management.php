@@ -65,58 +65,77 @@ function getProfilePicture($profile_picture, $full_name) {
 // Session check and user profile link logic
 if (isset($_SESSION['user_id']) && $conn) {
     $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
-    
+
     // Fetch current user details from database
     $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
     $user_result = mysqli_query($conn, $user_query);
-    
+
     if ($user_result && mysqli_num_rows($user_result) > 0) {
         $user_data = mysqli_fetch_assoc($user_result);
-        
+
         // Set user information
         $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
         $current_user_role = $user_data['position'];
         $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
-        
+
         // Profile link goes to user-profile.php with their ID
         $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
     }
 }
 
-// Function to get all products
-function getProducts($conn) {
-    $sql = "SELECT id, name, description, price, quantity, supplier_id, last_updated FROM products";
+// Function to get all items from inventory_item table
+function getItems($conn) {
+    // We still select 'supplier_id' as it might be used in other parts of the system or data-attributes
+    // but we will remove its display from the table/modal as requested.
+    $sql = "SELECT itemID, product_name, type_product, stock, price, supplier_id, last_updated FROM inventory_item ORDER BY product_name ASC";
     $result = $conn->query($sql);
-    $products = [];
+    $items = [];
     if ($result && $result->num_rows > 0) {
         while($row = $result->fetch_assoc()) {
-            $products[] = $row;
+            $items[] = $row;
         }
     }
-    return $products;
+    return $items;
 }
 
-// Function to add a product (for demonstration, would typically be in stock-in.php)
-function addProduct($conn, $name, $description, $price, $quantity, $supplier_id) {
-    $stmt = $conn->prepare("INSERT INTO products (name, description, price, quantity, supplier_id, last_updated) VALUES (?, ?, ?, ?, ?, NOW())");
+// These functions (addItem, updateItemQuantity) are typically for stock-in.php or other processing scripts.
+// They are kept here for context but their primary logic isn't used directly on this 'stock-management' page.
+function addItem($conn, $name, $description, $price, $quantity, $supplier_id) {
+    $stmt = $conn->prepare("INSERT INTO inventory_item (product_name, type_product, price, stock, supplier_id, last_updated) VALUES (?, ?, ?, ?, ?, NOW())");
     if ($stmt) {
         $stmt->bind_param("ssdsi", $name, $description, $price, $quantity, $supplier_id);
         $stmt->execute();
+        if ($stmt->error) {
+            error_log("Error adding item: " . $stmt->error);
+            return false;
+        }
         $stmt->close();
+        return true;
+    } else {
+        error_log("Error preparing addItem statement: " . $conn->error);
+        return false;
     }
 }
 
-// Function to update product quantity (stock in/out - logic would be in stock-in.php/stock-out.php)
-function updateProductQuantity($conn, $product_id, $change_amount) {
-    $stmt = $conn->prepare("UPDATE products SET quantity = quantity + ?, last_updated = NOW() WHERE id = ?");
+function updateItemQuantity($conn, $item_id, $change_amount) {
+    $stmt = $conn->prepare("UPDATE inventory_item SET stock = stock + ?, last_updated = NOW() WHERE itemID = ?");
     if ($stmt) {
-        $stmt->bind_param("ii", $change_amount, $product_id);
+        $stmt->bind_param("ii", $change_amount, $item_id);
         $stmt->execute();
+        if ($stmt->error) {
+            error_log("Error updating item quantity: " . $stmt->error);
+            return false;
+        }
         $stmt->close();
+        return true;
+    } else {
+        error_log("Error preparing updateItemQuantity statement: " . $conn->error);
+        return false;
     }
 }
 
-// Handle form submissions
+
+// Handle form submissions (This block is likely from a legacy 'add product' feature on this page. Consider if it's still needed here.)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['add_product'])) {
         $name = $_POST['name'];
@@ -124,13 +143,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $price = $_POST['price'];
         $quantity = $_POST['quantity'];
         $supplier_id = $_POST['supplier_id'];
-        addProduct($conn, $name, $description, $price, $quantity, $supplier_id);
+
         header("Location: stock-management.php");
         exit();
     }
 }
 
-$products = getProducts($conn);
+// Fetch items for display and statistics
+$products = getItems($conn);
 
 // Get stock statistics
 $stats = [
@@ -141,12 +161,15 @@ $stats = [
 ];
 
 foreach ($products as $product) {
-    if ($product['quantity'] <= 0) {
+    $current_stock = $product['stock'] ?? 0;
+    $current_price = $product['price'] ?? 0;
+
+    if ($current_stock <= 0) {
         $stats['out_of_stock']++;
-    } elseif ($product['quantity'] <= 10) {
+    } elseif ($current_stock <= 50) {
         $stats['low_stock']++;
     }
-    $stats['total_value'] += ($product['price'] * $product['quantity']);
+    $stats['total_value'] += ($current_price * $current_stock);
 }
 ?>
 
@@ -163,28 +186,22 @@ foreach ($products as $product) {
 
     <meta name="description" content="Stock Management System" />
 
-    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/inventomo.ico" />
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
         rel="stylesheet" />
 
-    <!-- Icons -->
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
 
-    <!-- Core CSS -->
     <link rel="stylesheet" href="assets/vendor/css/core.css" class="template-customizer-core-css" />
     <link rel="stylesheet" href="assets/vendor/css/theme-default.css" class="template-customizer-theme-css" />
     <link rel="stylesheet" href="assets/css/demo.css" />
 
-    <!-- Vendors CSS -->
     <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
 
-    <!-- Page CSS -->
     <style>
     .content-header {
         display: flex;
@@ -552,47 +569,15 @@ foreach ($products as $product) {
             margin-bottom: 0.25rem;
         }
     }
-
-    body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    .page-title {
-        color: white;
-        font-size: 2.0rem;
-        font-weight: bold;
-    }
-    
     </style>
 
-    <!-- Helpers -->
     <script src="assets/vendor/js/helpers.js"></script>
     <script src="assets/js/config.js"></script>
 </head>
 
 <body>
-    <!-- Layout wrapper -->
     <div class="layout-wrapper layout-content-navbar">
         <div class="layout-container">
-            <!-- Menu -->
             <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
@@ -610,7 +595,6 @@ foreach ($products as $product) {
                 <div class="menu-inner-shadow"></div>
 
                 <ul class="menu-inner py-1">
-                    <!-- Dashboard -->
                     <li class="menu-item">
                         <a href="index.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-home-circle"></i>
@@ -623,7 +607,7 @@ foreach ($products as $product) {
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
+                            <i class="menu-icon tf-icons bx bx-card"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -641,7 +625,7 @@ foreach ($products as $product) {
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -662,11 +646,7 @@ foreach ($products as $product) {
                     </li>
                 </ul>
             </aside>
-            <!-- / Menu -->
-
-            <!-- Layout container -->
             <div class="layout-page">
-                <!-- Navbar -->
                 <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
                     id="layout-navbar">
                     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
@@ -676,7 +656,6 @@ foreach ($products as $product) {
                     </div>
 
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-                        <!-- Search -->
                         <div class="navbar-nav align-items-center">
                             <div class="nav-item d-flex align-items-center">
                                 <i class="bx bx-search fs-4 lh-0"></i>
@@ -684,10 +663,7 @@ foreach ($products as $product) {
                                     aria-label="Search..." />
                             </div>
                         </div>
-                        <!-- /Search -->
-
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
-                            <!-- User -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
@@ -695,9 +671,9 @@ foreach ($products as $product) {
                                         <?php
                                         $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
                                         if ($navbar_pic): ?>
-                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
@@ -705,13 +681,11 @@ foreach ($products as $product) {
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div
-                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                                     <?php if ($navbar_pic): ?>
-                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
-                                                        alt="Profile Picture">
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                                     <?php else: ?>
-                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                                     <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
@@ -735,6 +709,12 @@ foreach ($products as $product) {
                                         </a>
                                     </li>
                                     <li>
+                                        <a class="dropdown-item" href="#">
+                                            <i class="bx bx-cog me-2"></i>
+                                            <span class="align-middle">Settings</span>
+                                        </a>
+                                    </li>
+                                    <li>
                                         <div class="dropdown-divider"></div>
                                     </li>
                                     <li>
@@ -745,24 +725,17 @@ foreach ($products as $product) {
                                     </li>
                                 </ul>
                             </li>
-                            <!--/ User -->
-                        </ul>
+                            </ul>
                     </div>
                 </nav>
-                <!-- / Navbar -->
-
-                <!-- Content wrapper -->
                 <div class="content-wrapper">
-                    <!-- Content -->
                     <div class="container-xxl flex-grow-1 container-p-y">
-                        <!-- Page Header -->
-                        <div class="content-header">
-                            <h4 class="page-title">
-                                <i class="bx bx-list-plus"></i>Stock Management
-                            </h4>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h4 class="fw-bold"><span class="text-muted fw-light">Stock Management /</span> Stock List</h4>
+                            <div class="d-flex gap-2">
+                            </div>
                         </div>
 
-                        <!-- Statistics Grid -->
                         <div class="stats-grid">
                             <div class="stat-card total">
                                 <div class="stat-icon">
@@ -796,14 +769,12 @@ foreach ($products as $product) {
                                     <i class="bx bx-dollar"></i>
                                 </div>
                                 <div class="stat-content">
-                                    <div class="stat-value">$<?php echo number_format($stats['total_value'], 0); ?>
-                                    </div>
+                                    <div class="stat-value">$<?php echo number_format($stats['total_value'], 2); ?></div>
                                     <div class="stat-label">Total Stock Value</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Action Buttons Section -->
                         <div class="action-buttons-section">
                             <h6>
                                 <i class="bx bx-cog"></i>Quick Actions
@@ -821,7 +792,6 @@ foreach ($products as $product) {
                             </div>
                         </div>
 
-                        <!-- Stock List Table -->
                         <div class="card">
                             <div class="card-header">
                                 <i class="bx bx-list-ul"></i>Stock List
@@ -833,33 +803,31 @@ foreach ($products as $product) {
                                             <tr>
                                                 <th>Item ID</th>
                                                 <th>Product Name</th>
-                                                <th>Description</th>
+                                                <th>Product Type</th>
                                                 <th>Price</th>
                                                 <th>Stock Quantity</th>
-                                                <th>Supplier ID</th>
                                                 <th>Last Updated</th>
                                                 <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php if (!empty($products)): ?>
-                                            <?php foreach ($products as $product): ?>
-                                            <tr>
-                                                <td>
-                                                    <strong><?php echo htmlspecialchars($product['id']); ?></strong>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($product['name']); ?></td>
-                                                <td><?php echo htmlspecialchars($product['description'] ?? 'N/A'); ?>
-                                                </td>
-                                                <td>
-                                                    <strong>$<?php echo number_format($product['price'] ?? 0, 2); ?></strong>
-                                                </td>
-                                                <td>
-                                                    <?php
-                                                            $quantity = $product['quantity'];
+                                                <?php foreach ($products as $product): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <strong><?php echo htmlspecialchars($product['itemID']); ?></strong>
+                                                        </td>
+                                                        <td><?php echo htmlspecialchars($product['product_name']); ?></td>
+                                                        <td><?php echo htmlspecialchars($product['type_product'] ?? 'N/A'); ?></td>
+                                                        <td>
+                                                            <strong>$<?php echo number_format($product['price'] ?? 0, 2); ?></strong>
+                                                        </td>
+                                                        <td>
+                                                            <?php
+                                                            $quantity = $product['stock'] ?? 0;
                                                             $badge_class = 'bg-success';
                                                             $badge_icon = 'bx-check-circle';
-                                                            
+
                                                             if ($quantity <= 0) {
                                                                 $badge_class = 'bg-danger';
                                                                 $badge_icon = 'bx-x-circle';
@@ -868,15 +836,13 @@ foreach ($products as $product) {
                                                                 $badge_icon = 'bx-error';
                                                             }
                                                             ?>
-                                                    <span class="badge <?php echo $badge_class; ?>">
-                                                        <i class="bx <?php echo $badge_icon; ?>"></i>
-                                                        <?php echo htmlspecialchars($quantity); ?>
-                                                    </span>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($product['supplier_id'] ?? 'N/A'); ?>
-                                                </td>
-                                                <td>
-                                                    <?php 
+                                                            <span class="badge <?php echo $badge_class; ?>">
+                                                                <i class="bx <?php echo $badge_icon; ?>"></i>
+                                                                <?php echo htmlspecialchars($quantity); ?>
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <?php
                                                             $date = $product['last_updated'] ?? 'N/A';
                                                             if ($date !== 'N/A') {
                                                                 echo date('M d, Y H:i', strtotime($date));
@@ -884,38 +850,38 @@ foreach ($products as $product) {
                                                                 echo $date;
                                                             }
                                                             ?>
-                                                </td>
-                                                <td>
-                                                    <div class="btn-group" role="group">
-                                                        <a href="stock-in.php?id=<?php echo htmlspecialchars($product['id']); ?>"
-                                                            class="btn btn-sm btn-success" title="Stock In">
-                                                            <i class="bx bx-plus"></i>
-                                                        </a>
-                                                        <a href="stock-out.php?id=<?php echo htmlspecialchars($product['id']); ?>"
-                                                            class="btn btn-sm btn-warning" title="Stock Out">
-                                                            <i class="bx bx-minus"></i>
-                                                        </a>
-                                                        <button type="button" class="btn btn-sm btn-info"
-                                                            data-bs-toggle="modal" data-bs-target="#productModal"
-                                                            data-product='<?php echo json_encode($product); ?>'
-                                                            title="View Details">
-                                                            <i class="bx bx-show"></i>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <?php endforeach; ?>
+                                                        </td>
+                                                        <td>
+                                                            <div class="btn-group" role="group">
+                                                                <a href="stock-in.php?id=<?php echo htmlspecialchars($product['itemID']); ?>"
+                                                                    class="btn btn-sm btn-success" title="Stock In">
+                                                                    <i class="bx bx-plus"></i>
+                                                                </a>
+                                                                <a href="stock-out.php?id=<?php echo htmlspecialchars($product['itemID']); ?>"
+                                                                    class="btn btn-sm btn-warning" title="Stock Out">
+                                                                    <i class="bx bx-minus"></i>
+                                                                </a>
+                                                                <button type="button" class="btn btn-sm btn-info"
+                                                                            data-bs-toggle="modal"
+                                                                            data-bs-target="#productModal"
+                                                                            data-product='<?php echo json_encode($product); ?>'
+                                                                            title="View Details">
+                                                                    <i class="bx bx-show"></i>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
                                             <?php else: ?>
-                                            <tr>
-                                                <td colspan="8" class="empty-state">
-                                                    <i class="bx bx-package"></i>
-                                                    <h6>No Stock Items Found</h6>
-                                                    <p>Start by adding your first product to manage stock levels.</p>
-                                                    <a href="stock-in.php" class="action-btn btn-success">
-                                                        <i class="bx bx-plus"></i>Add First Product
-                                                    </a>
-                                                </td>
-                                            </tr>
+                                                <tr>
+                                                    <td colspan="7" class="empty-state"> <i class="bx bx-package"></i>
+                                                        <h6>No Stock Items Found</h6>
+                                                        <p>Start by adding your first product to manage stock levels.</p>
+                                                        <a href="stock-in.php" class="action-btn btn-success">
+                                                            <i class="bx bx-plus"></i>Add First Product
+                                                        </a>
+                                                    </td>
+                                                </tr>
                                             <?php endif; ?>
                                         </tbody>
                                     </table>
@@ -923,16 +889,10 @@ foreach ($products as $product) {
                             </div>
                         </div>
                     </div>
-                    <!-- / Content -->
-
-                    <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
-                        <div
-                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>
-                                document.write(new Date().getFullYear());
-                                </script> Inventomo. All rights reserved.
+                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -940,27 +900,19 @@ foreach ($products as $product) {
                             </div>
                         </div>
                     </footer>
-                    <!-- / Footer -->
-
                     <div class="content-backdrop fade"></div>
                 </div>
-                <!-- Content wrapper -->
+                </div>
             </div>
-            <!-- / Layout page -->
-        </div>
 
-        <!-- Overlay -->
         <div class="layout-overlay layout-menu-toggle"></div>
     </div>
-    <!-- / Layout wrapper -->
-
-    <!-- Product Details Modal -->
     <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="productModalLabel">
-                        <i class="bx bx-package me-2"></i>Product Details
+                        <i class="bx bx-package me-2"></i>Item Details
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -973,22 +925,18 @@ foreach ($products as $product) {
                                         <i class="bx bx-info-circle text-primary"></i>Basic Information
                                     </h6>
                                     <div class="row mb-2">
-                                        <div class="col-sm-5"><strong>Product ID:</strong></div>
-                                        <div class="col-sm-7" id="modalProductId"></div>
+                                        <div class="col-sm-5"><strong>Item ID:</strong></div>
+                                        <div class="col-sm-7" id="modalItemId"></div>
                                     </div>
                                     <div class="row mb-2">
                                         <div class="col-sm-5"><strong>Name:</strong></div>
-                                        <div class="col-sm-7" id="modalProductName"></div>
+                                        <div class="col-sm-7" id="modalItemName"></div>
                                     </div>
                                     <div class="row mb-2">
-                                        <div class="col-sm-5"><strong>Description:</strong></div>
-                                        <div class="col-sm-7" id="modalProductDescription"></div>
+                                        <div class="col-sm-5"><strong>Product Type:</strong></div>
+                                        <div class="col-sm-7" id="modalProductType"></div>
                                     </div>
-                                    <div class="row">
-                                        <div class="col-sm-5"><strong>Supplier ID:</strong></div>
-                                        <div class="col-sm-7" id="modalProductSupplier"></div>
                                     </div>
-                                </div>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -1033,7 +981,6 @@ foreach ($products as $product) {
         </div>
     </div>
 
-    <!-- Core JS -->
     <script src="assets/vendor/libs/jquery/jquery.js"></script>
     <script src="assets/vendor/libs/popper/popper.js"></script>
     <script src="assets/vendor/js/bootstrap.js"></script>
@@ -1041,9 +988,8 @@ foreach ($products as $product) {
     <script src="assets/vendor/js/menu.js"></script>
     <script src="assets/js/main.js"></script>
 
-    <!-- Page JS -->
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         initializeStockManagement();
     });
 
@@ -1052,23 +998,25 @@ foreach ($products as $product) {
         var productModal = document.getElementById('productModal');
 
         if (productModal) {
-            productModal.addEventListener('show.bs.modal', function(event) {
+            productModal.addEventListener('show.bs.modal', function (event) {
                 var button = event.relatedTarget;
                 var product = JSON.parse(button.getAttribute('data-product'));
 
-                // Update modal content
-                document.getElementById('modalProductId').textContent = product.id;
-                document.getElementById('modalProductName').textContent = product.name;
-                document.getElementById('modalProductDescription').textContent = product.description || 'N/A';
+                // Update modal content - use actual column names from inventory_item table
+                document.getElementById('modalItemId').textContent = product.itemID || 'N/A';
+                document.getElementById('modalItemName').textContent = product.product_name || 'N/A';
+                document.getElementById('modalProductType').textContent = product.type_product || 'N/A';
+                // Note: modalProductDescription is not used as 'description' column is not in inventory_item SELECT
+                // document.getElementById('modalProductDescription').textContent = product.description || 'N/A';
 
                 var price = parseFloat(product.price || 0);
-                var quantity = parseInt(product.quantity || 0);
-                var totalValue = price * quantity;
+                var quantity = parseInt(product.stock || 0); // Use 'stock' for quantity
+                var totalValue = price * quantity; // Calculate total value based on price and stock
 
-                document.getElementById('modalProductPrice').textContent = ' + price.toFixed(2);
+                document.getElementById('modalProductPrice').textContent = '$' + price.toFixed(2);
                 document.getElementById('modalProductQuantity').innerHTML = getQuantityBadge(quantity);
-                document.getElementById('modalProductValue').textContent = ' + totalValue.toFixed(2);
-                document.getElementById('modalProductSupplier').textContent = product.supplier_id || 'N/A';
+                document.getElementById('modalProductValue').textContent = '$' + totalValue.toFixed(2);
+                // REMOVED: document.getElementById('modalProductSupplier').textContent = product.supplier_id || 'N/A';
 
                 var lastUpdated = product.last_updated || 'N/A';
                 if (lastUpdated !== 'N/A') {
@@ -1083,9 +1031,9 @@ foreach ($products as $product) {
                 }
                 document.getElementById('modalProductUpdated').textContent = lastUpdated;
 
-                // Update action buttons
-                document.getElementById('modalStockInBtn').href = 'stock-in.php?id=' + product.id;
-                document.getElementById('modalStockOutBtn').href = 'stock-out.php?id=' + product.id;
+                // Update action buttons links
+                document.getElementById('modalStockInBtn').href = 'stock-in.php?id=' + product.itemID;
+                document.getElementById('modalStockOutBtn').href = 'stock-out.php?id=' + product.itemID;
             });
         }
 
