@@ -1,189 +1,239 @@
 <?php
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Start session for user authentication
 session_start();
 
-// Check if user is logged in
+// Check if user is logged in, if not, redirect to login page
 if (!isset($_SESSION['user_id'])) {
     header("Location: auth-login-basic.html");
     exit();
 }
 
-// Database connection
+// Database connection details
 $host = 'localhost';
 $user = 'root';
 $pass = '';
 $dbname = 'inventory_system';
 
-// Create connection
+// Create database connection
 $conn = new mysqli($host, $user, $pass, $dbname);
 
-// Check connection
+// Check if connection was successful
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Initialize user variables
+// Initialize user variables with proper defaults
 $current_user_id = $_SESSION['user_id'];
-$current_user_name = "User";
-$current_user_role = "user";
-$current_user_avatar = "1.png";
+$current_user_name = "User"; // Default name
+$current_user_role = "user"; // Default role
+$current_user_avatar = "default.jpg"; // Default avatar filename
+$avatar_path = "uploads/photos/"; // Path where profile pictures are stored
 
-// Helper function to get avatar background color based on position
-function getAvatarColor($position) {
-    switch (strtolower($position)) {
-        case 'admin':
-            return 'primary';
-        case 'super-admin':
-            return 'danger';
-        case 'moderator':
-            return 'warning';
-        case 'manager':
-            return 'success';
-        case 'staff':
-            return 'info';
-        default:
-            return 'secondary';
+// Function to determine user avatar URL based on filename and path
+function getUserAvatarUrl($avatar_filename, $avatar_path) {
+    // If filename is empty, default, or placeholder, return null to show initials
+    if (empty($avatar_filename) || $avatar_filename == 'default.jpg' || $avatar_filename == '1.png') {
+        return null;
     }
-}
 
-// Helper function to get profile picture path
-function getProfilePicture($profile_picture, $full_name) {
-    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
-        $photo_path = 'uploads/photos/' . $profile_picture;
-        if (file_exists($photo_path)) {
-            return $photo_path;
-        }
+    // Check if the physical file exists before returning the path
+    if (file_exists($avatar_path . $avatar_filename)) {
+        return $avatar_path . $avatar_filename;
     }
-    // Return null to show initials instead
+
+    // If file doesn't exist, return null to show initials
     return null;
 }
 
-// Session check and user profile link logic
-if (isset($_SESSION['user_id']) && $conn) {
-    $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
-    
-    // Fetch current user details from database
-    $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
-    $user_result = mysqli_query($conn, $user_query);
-    
-    if ($user_result && mysqli_num_rows($user_result) > 0) {
-        $user_data = mysqli_fetch_assoc($user_result);
-        
-        // Set user information
+// Fetch current user details from database using a prepared statement for security
+$user_query = "SELECT full_name, username, position, profile_picture FROM user_profiles WHERE Id = ? LIMIT 1";
+$stmt = $conn->prepare($user_query);
+
+if ($stmt) {
+    // 'i' specifies the parameter type as integer (assuming Id is INT)
+    $stmt->bind_param("i", $current_user_id);
+    $stmt->execute();
+    $user_result = $stmt->get_result();
+
+    if ($user_result && $user_result->num_rows > 0) {
+        $user_data = $user_result->fetch_assoc();
+
+        // Set user information from fetched data
         $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
         $current_user_role = $user_data['position'];
-        $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
-        
-        // Profile link goes to user-profile.php with their ID
-        $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
+
+        // Check and set the user's avatar filename
+        if (!empty($user_data['profile_picture'])) {
+            $profile_pic_name = $user_data['profile_picture'];
+            // Additional check if the file exists on disk
+            if (file_exists($avatar_path . $profile_pic_name)) {
+                 $current_user_avatar = $profile_pic_name;
+            } else {
+                 $current_user_avatar = 'default.jpg'; // Fallback if file doesn't exist
+            }
+        } else {
+            $current_user_avatar = 'default.jpg'; // Fallback if no profile picture is set
+        }
+    }
+    $stmt->close(); // Close the prepared statement
+}
+
+// Get the final user avatar URL for display
+$user_avatar_url = getUserAvatarUrl($current_user_avatar, $avatar_path);
+
+// Helper function to get avatar background color based on user position/role
+function getAvatarColor($position) {
+    switch (strtolower($position)) {
+        case 'admin': return 'primary';
+        case 'super-admin': return 'danger';
+        case 'manager': return 'success';
+        case 'supervisor': return 'warning';
+        case 'staff': return 'info';
+        default: return 'secondary'; // Default color for unassigned roles
     }
 }
 
-$message = "";
+$message = ""; // Variable to hold success/error messages for display
 
-// --- Handle Form Submission (POST Request from Modal) ---
+// --- Handle Form Submission (POST Request for Stock Deduction) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'stock_out_submit') {
-    $product_id_to_update = intval($_POST['product_id']); // This comes from the dropdown selection
+    // Retrieve and sanitize input from the form
+    $item_id_to_update = intval($_POST['product_id']); // This is the itemID from inventory_item
     $quantity_to_deduct = intval($_POST['quantity_deducted']);
-    // Use actual logged-in username instead of hardcoded "Admin"
-    $user_who_deducted_stock = $current_user_name;
+    $user_who_deducted_stock = $current_user_name; // Use the logged-in user's name
 
-    // Fetch current quantity and product name for validation and history logging
-    $current_product_quantity = 0;
-    $product_name_for_history = "";
+    // Initialize variables for validation and history logging
+    $current_item_stock = 0;
+    $item_name_for_history = "";
 
-    $stmt_check = $conn->prepare("SELECT name, quantity FROM products WHERE id = ?");
-    $stmt_check->bind_param("i", $product_id_to_update);
-    $stmt_check->execute();
-    $result_check = $stmt_check->get_result();
-    if ($result_check->num_rows > 0) {
-        $product_data = $result_check->fetch_assoc();
-        $product_name_for_history = $product_data['name'];
-        $current_product_quantity = $product_data['quantity'];
-    }
-    $stmt_check->close();
-
-    if ($product_id_to_update <= 0) {
+    // Fetch current stock and item name from 'inventory_item' for validation and history
+    $stmt_check = $conn->prepare("SELECT product_name, stock FROM inventory_item WHERE itemID = ?");
+    if ($stmt_check) {
+        $stmt_check->bind_param("i", $item_id_to_update); // 'i' for integer
+        $stmt_check->execute();
+        $result_check = $stmt_check->get_result();
+        if ($result_check->num_rows > 0) {
+            $item_data = $result_check->fetch_assoc();
+            $item_name_for_history = $item_data['product_name'];
+            $current_item_stock = $item_data['stock'];
+        }
+        $stmt_check->close();
+    } else {
+        // If preparing the statement fails, log error and set message
         $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                      <strong>Error!</strong> Please select a product.
-                      <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                        <strong>Error!</strong> Failed to prepare item check statement: " . htmlspecialchars($conn->error) . "
+                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                    </div>";
+    }
+
+    // Server-side validation logic
+    if ($item_id_to_update <= 0) {
+        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
+                        <strong>Error!</strong> Please select an item to deduct stock from.
+                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
                     </div>";
     } elseif ($quantity_to_deduct <= 0) {
         $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                      <strong>Error!</strong> Quantity to deduct must be greater than 0.
-                      <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                        <strong>Error!</strong> Quantity to deduct must be a positive number.
+                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
                     </div>";
-    } elseif ($quantity_to_deduct > $current_product_quantity) {
+    } elseif ($quantity_to_deduct > $current_item_stock) {
         $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                      <strong>Insufficient Stock!</strong> Cannot deduct {$quantity_to_deduct} items. Only {$current_product_quantity} in stock for '{$product_name_for_history}'.
-                      <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                        <strong>Insufficient Stock!</strong> Cannot deduct {$quantity_to_deduct} units. Only {$current_item_stock} in stock for '{$item_name_for_history}'.
+                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
                     </div>";
     } else {
-        // All validations passed, proceed with transaction
-        $conn->begin_transaction();
+        // All validations passed, proceed with database transaction for atomicity
+        $conn->begin_transaction(); // Start transaction
+
         try {
-            // 1. Update product quantity
-            $stmt_update = $conn->prepare("UPDATE products SET quantity = quantity - ?, last_updated = NOW() WHERE id = ?");
-            $stmt_update->bind_param("ii", $quantity_to_deduct, $product_id_to_update);
+            // 1. Update stock quantity in the 'inventory_item' table
+            // 'stock' is the column name for quantity in your inventory_item table
+            $stmt_update = $conn->prepare("UPDATE inventory_item SET stock = stock - ?, last_updated = NOW() WHERE itemID = ?");
+            if (!$stmt_update) {
+                // If statement preparation fails, throw an exception
+                throw new mysqli_sql_exception("Failed to prepare item update statement: " . $conn->error);
+            }
+            $stmt_update->bind_param("ii", $quantity_to_deduct, $item_id_to_update); // 'ii' for two integers
             $stmt_update->execute();
 
-            // 2. Record in stock_out_history
-            $stmt_history = $conn->prepare("INSERT INTO stock_out_history (product_id, product_name, quantity_deducted, username, transaction_date) VALUES (?, ?, ?, ?, NOW())");
-            $stmt_history->bind_param("isis", $product_id_to_update, $product_name_for_history, $quantity_to_deduct, $user_who_deducted_stock);
-            $stmt_history->execute();
+            // Check if any row was affected by the update
+            if ($stmt_update->affected_rows === 0) {
+                // If no row was affected, it means the itemID was not found
+                throw new mysqli_sql_exception("Failed to update item stock. Item ID '{$item_id_to_update}' not found or no change occurred.");
+            }
+            $stmt_update->close(); // Close the update statement
 
-            $conn->commit(); // Commit transaction if all successful
+            // 2. Record the deduction in the 'stock_out_history' table
+            // 'product_id' (which is the itemID), 'product_name', 'quantity_deducted', 'username'
+            $stmt_history = $conn->prepare("INSERT INTO stock_out_history (product_id, product_name, quantity_deducted, username, transaction_date) VALUES (?, ?, ?, ?, NOW())");
+            if (!$stmt_history) {
+                // If statement preparation fails, throw an exception
+                throw new mysqli_sql_exception("Failed to prepare history insert statement: " . $conn->error);
+            }
+            $stmt_history->bind_param("isis", $item_id_to_update, $item_name_for_history, $quantity_to_deduct, $user_who_deducted_stock); // 'isis' for int, string, int, string
+            $stmt_history->execute();
+            $stmt_history->close(); // Close the history statement
+
+            $conn->commit(); // Commit the transaction if both operations were successful
+            // Set success message
             $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'>
-                          <strong>Success!</strong> Stock deducted and recorded successfully for '{$product_name_for_history}'!
-                          <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                            <strong>Success!</strong> Stock deducted and recorded successfully for '<strong>" . htmlspecialchars($item_name_for_history) . "</strong>'. Deducted <strong>{$quantity_to_deduct}</strong> units.
+                            <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
                         </div>";
         } catch (mysqli_sql_exception $e) {
-            $conn->rollback(); // Rollback on error
+            $conn->rollback(); // Rollback the transaction if any error occurs
+            // Set error message, HTML-encode the exception message for safety
             $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                          <strong>Database Error!</strong> Error processing stock out: " . $e->getMessage() . "
-                          <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                            <strong>Database Error!</strong> Error processing stock out: " . htmlspecialchars($e->getMessage()) . "
+                            <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
                         </div>";
-        } finally {
-            if (isset($stmt_update)) $stmt_update->close();
-            if (isset($stmt_history)) $stmt_history->close();
+            error_log("Stock Out Transaction Error: " . $e->getMessage()); // Log detailed error for server-side debugging
         }
     }
 }
 
-// --- Fetch Statistics ---
+// --- Fetch Statistics for Stock Out Dashboard ---
 $total_transactions = 0;
 $total_quantity_deducted = 0;
 
 $sql_stats = "SELECT COUNT(*) as transaction_count, COALESCE(SUM(quantity_deducted), 0) as total_deducted FROM stock_out_history";
 $result_stats = $conn->query($sql_stats);
-if ($result_stats->num_rows > 0) {
+if ($result_stats && $result_stats->num_rows > 0) {
     $stats = $result_stats->fetch_assoc();
     $total_transactions = $stats['transaction_count'];
     $total_quantity_deducted = $stats['total_deducted'];
 }
 
-// --- Fetch all products for the dropdown ---
-$all_products = [];
-$sql_all_products = "SELECT id, name, description, quantity FROM products WHERE quantity > 0 ORDER BY name ASC";
-$result_all_products = $conn->query($sql_all_products);
-if ($result_all_products->num_rows > 0) {
-    while($row = $result_all_products->fetch_assoc()) {
-        $all_products[] = $row;
+// --- Fetch all available items for the dropdown in the modal ---
+$all_items = [];
+// Select items from 'inventory_item' table where 'stock' is greater than 0
+// Also fetch 'type_product' as per your database schema
+$sql_all_items = "SELECT itemID, product_name, type_product, stock FROM inventory_item WHERE stock > 0 ORDER BY product_name ASC";
+$result_all_items = $conn->query($sql_all_items);
+if ($result_all_items && $result_all_items->num_rows > 0) {
+    while($row = $result_all_items->fetch_assoc()) {
+        $all_items[] = $row;
     }
 }
 
-// --- Fetch Stock Out History ---
+// --- Fetch Recent Stock Out History for the table display ---
 $stock_out_history = [];
 $sql_history = "SELECT soh.id, soh.product_id, soh.product_name, soh.quantity_deducted, soh.username, soh.transaction_date
                 FROM stock_out_history soh
-                ORDER BY soh.transaction_date DESC LIMIT 50";
+                ORDER BY soh.transaction_date DESC LIMIT 50"; // Limit to recent 50 transactions
 $result_history = $conn->query($sql_history);
-if ($result_history->num_rows > 0) {
+if ($result_history && $result_history->num_rows > 0) {
     while($row = $result_history->fetch_assoc()) {
         $stock_out_history[] = $row;
     }
 }
 
+// Close the database connection at the very end of the PHP script
 $conn->close();
 ?>
 
@@ -194,250 +244,107 @@ $conn->close();
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stock Out - Inventomo</title>
+    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/inventomo.ico" />
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Icons -->
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
+    <!-- Core CSS -->
     <link rel="stylesheet" href="assets/vendor/css/core.css" />
     <link rel="stylesheet" href="assets/vendor/css/theme-default.css" />
     <link rel="stylesheet" href="assets/css/demo.css" />
+    <!-- Vendors CSS -->
     <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
+    <!-- Helpers and Config JS (must be loaded early) -->
     <script src="assets/vendor/js/helpers.js"></script>
     <script src="assets/js/config.js"></script>
-    
+
     <style>
-        /* Profile Avatar Styles - Consistent with other pages */
+        /* General Layout & Colors (consistent with previous versions) */
         .user-avatar {
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            overflow: hidden;
-            display: inline-flex;
+            display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 0.5rem;
             font-weight: 600;
-            font-size: 12px;
+            font-size: 14px;
             color: white;
-            flex-shrink: 0;
             position: relative;
+            flex-shrink: 0;
         }
-
         .user-avatar img {
             width: 100%;
             height: 100%;
+            border-radius: 50%;
             object-fit: cover;
         }
-
-        /* Dropdown menu avatar styling */
-        .dropdown-menu .user-avatar {
-            width: 40px;
-            height: 40px;
-            margin-right: 0.75rem;
+        /* Online Status Indicator (optional, adapt if needed) */
+        .user-avatar::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            background-color: #10b981; /* Green color for online */
+            border: 2px solid white;
+            border-radius: 50%;
         }
-
-        .dropdown-item .d-flex {
-            align-items: center;
-        }
-
-        .dropdown-item .flex-grow-1 {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        /* Additional custom styles */
+        /* Card Styles */
         .stats-card {
-            border-left: 4px solid #ff6b35;
-            transition: transform 0.2s ease;
+            border-left: 4px solid #ff6b35; /* Orange for stock out related stats */
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
         }
         .stats-card:hover {
             transform: translateY(-2px);
+            box-shadow: 0 0.5rem 1rem rgba(161, 172, 184, 0.2);
         }
+        /* Loading spinner for buttons */
         .loading-spinner {
-            display: none;
+            display: none; /* Hidden by default */
         }
+        /* Search highlight for table */
         .search-highlight {
-            background-color: #fff3cd;
+            background-color: #fff3cd; /* Light yellow background */
             padding: 2px 4px;
             border-radius: 3px;
         }
+        /* Custom styles for profile links in dropdown */
         .profile-link {
             text-decoration: none;
             color: inherit;
         }
         .profile-link:hover {
             color: inherit;
+            background-color: #f8f9fa; /* Light background on hover */
         }
-        
-        /* Content styling improvements */
-        .content-header {
+        .dropdown-item .d-flex {
+            align-items: center;
+        }
+        .dropdown-item .flex-grow-1 {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
+            flex-direction: column;
+            justify-content: center;
+        }
+        /* Alert animations */
+        .alert {
+            animation: fadeInDown 0.5s ease;
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        .page-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #566a7f;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
+        /* Specific for Stock Out Modal details display */
+        #productDetailsSection {
+            display: none; /* Hidden by default until a product is selected */
         }
-
-        .action-buttons {
-            display: flex;
-            gap: 0.75rem;
-            align-items: center;
-        }
-
-        .action-btn {
-            padding: 0.5rem 1rem;
-            border-radius: 0.375rem;
-            text-decoration: none;
-            font-size: 0.875rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            border: 1px solid transparent;
-        }
-
-        .action-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .btn-warning {
-            background-color: #ffc107;
-            color: #212529;
-            border-color: #ffc107;
-        }
-
-        .btn-warning:hover {
-            background-color: #e0a800;
-            border-color: #d39e00;
-            color: #212529;
-        }
-
-        .card-enhanced {
-            border-radius: 0.5rem;
-            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
-            border: none;
-            margin-bottom: 1.5rem;
-            overflow: hidden;
-        }
-
-        .card-header-enhanced {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #d9dee3;
-            padding: 1.5rem;
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #566a7f;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .table-enhanced {
-            margin-bottom: 0;
-        }
-
-        .table-enhanced th {
-            background-color: #f5f5f9;
-            color: #566a7f;
-            font-weight: 600;
-            font-size: 0.8125rem;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            border-bottom: 2px solid #d9dee3;
-            padding: 1rem 0.75rem;
-        }
-
-        .table-enhanced td {
-            padding: 0.875rem 0.75rem;
-            color: #566a7f;
-            vertical-align: middle;
-            border-bottom: 1px solid #d9dee3;
-        }
-
-        .table-enhanced tbody tr:hover {
-            background-color: #f8f9fa;
-            transition: background-color 0.2s ease;
-        }
-
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 3rem 2rem;
-            color: #6c757d;
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            color: #d9dee3;
-            margin-bottom: 1rem;
-        }
-
-        @media (max-width: 768px) {
-            .content-header {
-                flex-direction: column;
-                gap: 1rem;
-                align-items: stretch;
-            }
-
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .table-responsive {
-                font-size: 0.875rem;
-            }
-        }
-
-         body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    .page-title {
-        color: white;
-        font-size: 2.0rem;
-        font-weight: bold;
-    }
     </style>
 </head>
 
@@ -475,11 +382,11 @@ $conn->close();
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
+                            <i class="menu-icon tf-icons bx bx-card"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
-                    <li class="menu-item active">
+                    <li class="menu-item">
                         <a href="stock-management.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-list-plus"></i>
                             <div data-i18n="Analytics">Stock Management</div>
@@ -493,7 +400,7 @@ $conn->close();
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -515,7 +422,7 @@ $conn->close();
                 </ul>
             </aside>
             <!-- / Menu -->
-            
+
             <div class="layout-page">
                 <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme">
                     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
@@ -527,18 +434,16 @@ $conn->close();
                         <div class="navbar-nav align-items-center">
                             <div class="nav-item d-flex align-items-center">
                                 <i class="bx bx-search fs-4 lh-0"></i>
-                                <input type="text" id="navbarSearch" class="form-control border-0 shadow-none" 
-                                       placeholder="Search history..." />
+                                <input type="text" id="navbarSearch" class="form-control border-0 shadow-none"
+                                            placeholder="Search history..." />
                             </div>
                         </div>
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
                                     <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                        <?php
-                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
-                                        if ($navbar_pic): ?>
-                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <?php if ($user_avatar_url): ?>
+                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="Profile Picture">
                                         <?php else: ?>
                                             <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
@@ -546,80 +451,48 @@ $conn->close();
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item" href="#">
+                                        <a class="dropdown-item profile-link" href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>">
                                             <div class="d-flex">
-                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                                    <?php if ($navbar_pic): ?>
-                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
-                                                    <?php else: ?>
-                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
-                                                    <?php endif; ?>
+                                                <div class="flex-shrink-0 me-3">
+                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                        <?php if ($user_avatar_url): ?>
+                                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>" alt="Profile Picture">
+                                                        <?php else: ?>
+                                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                        <?php endif; ?>
+                                                    </div>
                                                 </div>
                                                 <div class="flex-grow-1">
-                                                    <span class="fw-semibold d-block">
-                                                        <?php echo htmlspecialchars($current_user_name); ?>
-                                                    </span>
-                                                    <small class="text-muted">
-                                                        <?php echo htmlspecialchars(ucfirst($current_user_role)); ?>
-                                                    </small>
+                                                    <span class="fw-semibold d-block"><?php echo htmlspecialchars($current_user_name); ?></span>
+                                                    <small class="text-muted"><?php echo htmlspecialchars(ucfirst($current_user_role)); ?></small>
                                                 </div>
                                             </div>
                                         </a>
                                     </li>
-                                    <li>
-                                        <div class="dropdown-divider"></div>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="<?php echo isset($profile_link) ? $profile_link : 'user-profile.php'; ?>">
-                                            <i class="bx bx-user me-2"></i>
-                                            <span class="align-middle">My Profile</span>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="#">
-                                            <i class="bx bx-cog me-2"></i>
-                                            <span class="align-middle">Settings</span>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <div class="dropdown-divider"></div>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="logout.php">
-                                            <i class="bx bx-power-off me-2"></i>
-                                            <span class="align-middle">Log Out</span>
-                                        </a>
-                                    </li>
+                                    <li><div class="dropdown-divider"></div></li>
+                                    <li><a class="dropdown-item" href="user-profile.php?op=view&Id=<?php echo urlencode($current_user_id); ?>"><i class="bx bx-user me-2"></i> My Profile</a></li>
+                                    <li><a class="dropdown-item" href="user-settings.php"><i class="bx bx-cog me-2"></i> Settings</a></li>
+                                    <li><div class="dropdown-divider"></div></li>
+                                    <li><a class="dropdown-item" href="logout.php"><i class="bx bx-power-off me-2"></i> Log Out</a></li>
                                 </ul>
                             </li>
                         </ul>
                     </div>
                 </nav>
-                
+
                 <div class="content-wrapper">
                     <div class="container-xxl flex-grow-1 container-p-y">
-                        <!-- Page Header -->
-                        <div class="content-header">
-                            <h4 class="page-title">
-                                <i class="bx bx-minus-circle"></i>Stock Out Management
-                                <span class="breadcrumb-text">/ Deduct Stock</span>
-                            </h4>
-                            <div class="action-buttons">
-                                <button type="button" class="action-btn btn btn-outline-secondary" onclick="location.reload()">
-                                    <i class="bx bx-refresh"></i>Refresh
-                                </button>
-                                <a href="stock-management.php" class="action-btn btn btn-outline-primary">
-                                    <i class="bx bx-arrow-back"></i>Back to Stock Management
-                                </a>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h4 class="fw-bold"><span class="text-muted fw-light">Stock Management /</span> Stock Out</h4>
+                            <div class="d-flex gap-2">
                             </div>
                         </div>
 
                         <?php echo $message; // Display messages ?>
 
-                        <!-- Statistics Cards -->
                         <div class="row mb-4">
                             <div class="col-md-6">
-                                <div class="card card-enhanced stats-card">
+                                <div class="card stats-card">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
@@ -636,7 +509,7 @@ $conn->close();
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="card card-enhanced stats-card">
+                                <div class="card stats-card">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
@@ -654,69 +527,64 @@ $conn->close();
                             </div>
                         </div>
 
-                        <!-- Action Card -->
-                        <div class="card card-enhanced mb-4">
-                            <div class="card-header-enhanced">
-                                <span>
-                                    <i class="bx bx-cog me-2"></i>Stock Out Actions
-                                </span>
+                        <div class="card mb-4">
+                            <h5 class="card-header d-flex justify-content-between align-items-center">
+                                <span>Stock Out Actions</span>
                                 <small class="text-muted">Logged in as: <?php echo htmlspecialchars($current_user_name); ?></small>
-                            </div>
+                            </h5>
                             <div class="card-body">
                                 <div class="d-flex flex-wrap gap-2 mb-3">
                                     <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#stockOutModal">
                                         <i class="bx bx-minus-circle me-1"></i> Deduct Stock
                                     </button>
+                                    <!-- Added "Back to Stock Management" button here -->
+                                    <a href="stock-management.php" class="btn btn-outline-primary">
+                                        <i class="bx bx-arrow-back me-1"></i> Back to Stock Management
+                                    </a>
                                     <button type="button" class="btn btn-outline-info" onclick="window.print()">
                                         <i class="bx bx-printer me-1"></i> Print History
-                                    </button>
-                                    <button type="button" class="btn btn-outline-success" onclick="exportHistory()">
-                                        <i class="bx bx-export me-1"></i> Export Data
                                     </button>
                                 </div>
                                 <div class="alert alert-info d-flex align-items-center" role="alert">
                                     <i class="bx bx-info-circle me-2"></i>
                                     <div>
-                                        <strong>Quick Actions:</strong> Press <kbd>Ctrl + N</kbd> to add new stock out transaction, 
-                                        <kbd>Ctrl + B</kbd> to go back to stock management.
+                                        <strong>Quick Actions:</strong> Press <kbd>Ctrl + B</kbd> to go back to stock management.
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- History Table -->
-                        <div class="card card-enhanced">
-                            <div class="card-header-enhanced">
-                                <h5 class="mb-0">
-                                    <i class="bx bx-history me-2"></i>Recent Stock Out History
-                                </h5>
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Recent Stock Out History</h5>
                                 <small class="text-muted">Latest 50 transactions</small>
                             </div>
-                            <div class="table-responsive">
-                                <table class="table table-enhanced" id="historyTable">
-                                    <thead>
+                            <div class="table-responsive text-nowrap">
+                                <table class="table table-bordered" id="historyTable">
+                                    <thead class="table-light">
                                         <tr>
-                                            <th>Transaction ID</th>
-                                            <th>Product Details</th>
-                                            <th>Quantity Deducted</th>
+                                            <th>ID</th>
+                                            <th>Product</th>
+                                            <th>Quantity</th>
                                             <th>User</th>
-                                            <th>Date & Time</th>
+                                            <th>Date</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody class="table-border-bottom-0">
                                         <?php if (!empty($stock_out_history)): ?>
                                             <?php foreach ($stock_out_history as $history_item): ?>
                                             <tr>
-                                                <td>
-                                                    <span class="status-badge bg-label-secondary">
-                                                        #<?php echo htmlspecialchars($history_item['id']); ?>
-                                                    </span>
-                                                </td>
+                                                <td><span class="badge bg-label-secondary">#<?php echo htmlspecialchars($history_item['id']); ?></span></td>
                                                 <td>
                                                     <div>
                                                         <strong><?php echo htmlspecialchars($history_item['product_name']); ?></strong>
-                                                        <br><small class="text-muted">Product ID: <?php echo htmlspecialchars($history_item['product_id']); ?></small>
+                                                        <br><small class="text-muted">ID: <?php echo htmlspecialchars($history_item['product_id']); ?></small>
                                                     </div>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-label-warning">
+                                                        -<?php echo htmlspecialchars($history_item['quantity_deducted']); ?>
+                                                    </span>
                                                 </td>
                                                 <td>
                                                     <div class="d-flex align-items-center">
@@ -736,14 +604,11 @@ $conn->close();
                                             <?php endforeach; ?>
                                         <?php else: ?>
                                         <tr>
-                                            <td colspan="5">
-                                                <div class="empty-state">
-                                                    <i class="bx bx-package"></i>
-                                                    <h6>No Stock Out Transactions Found</h6>
-                                                    <p class="text-muted mb-0">Start by deducting stock from your inventory</p>
-                                                    <button type="button" class="btn btn-warning mt-2" data-bs-toggle="modal" data-bs-target="#stockOutModal">
-                                                        <i class="bx bx-plus"></i>Create First Transaction
-                                                    </button>
+                                            <td colspan="5" class="text-center py-4">
+                                                <div class="d-flex flex-column align-items-center">
+                                                    <i class="bx bx-package display-4 text-muted mb-2"></i>
+                                                    <p class="text-muted mb-0">No stock out transactions found</p>
+                                                    <small class="text-muted">Start by deducting stock from your inventory</small>
                                                 </div>
                                             </td>
                                         </tr>
@@ -758,7 +623,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Stock Out Modal -->
     <div class="modal fade" id="stockOutModal" tabindex="-1" aria-labelledby="stockOutModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -776,54 +640,54 @@ $conn->close();
                         <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
                             <i class="bx bx-info-circle me-2"></i>
                             <div>
-                                <strong>Note:</strong> This action will permanently reduce the stock quantity. 
+                                <strong>Note:</strong> This action will permanently reduce the stock quantity.
                                 Please verify the information before proceeding.
                             </div>
                         </div>
 
                         <div class="row">
                             <div class="col-12 mb-3">
-                                <label for="modalProductSelect" class="form-label">Select Product *</label>
+                                <label for="modalProductSelect" class="form-label"><i class="bx bx-package me-1"></i>Select Item *</label>
                                 <select class="form-select" id="modalProductSelect" required>
-                                    <option value="">Choose a product...</option>
-                                    <?php foreach ($all_products as $product): ?>
-                                        <option value="<?php echo $product['id']; ?>" 
-                                                data-name="<?php echo htmlspecialchars($product['name']); ?>"
-                                                data-description="<?php echo htmlspecialchars($product['description']); ?>"
-                                                data-quantity="<?php echo $product['quantity']; ?>">
-                                            <?php echo htmlspecialchars($product['name']); ?> (Stock: <?php echo $product['quantity']; ?>)
+                                    <option value="">-- Select an item with available stock --</option>
+                                    <?php foreach ($all_items as $item): ?>
+                                        <option value="<?php echo htmlspecialchars($item['itemID']); ?>"
+                                                data-product_name="<?php echo htmlspecialchars($item['product_name']); ?>"
+                                                data-type_product="<?php echo htmlspecialchars($item['type_product'] ?? ''); ?>"
+                                                data-stock="<?php echo htmlspecialchars($item['stock']); ?>">
+                                            ID: <?php echo htmlspecialchars($item['itemID']); ?> - <?php echo htmlspecialchars($item['product_name']); ?> (Current Stock: <?php echo htmlspecialchars($item['stock']); ?>)
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
                         </div>
 
-                        <div id="productDetailsSection" style="display: none;">
-                            <div class="row">
-                                <div class="col-12 mb-3">
-                                    <label for="modalProductName" class="form-label">Product Name</label>
-                                    <input type="text" class="form-control" id="modalProductName" readonly>
-                                </div>
-                                <div class="col-12 mb-3">
-                                    <label for="modalProductDescription" class="form-label">Description</label>
-                                    <textarea class="form-control" id="modalProductDescription" readonly rows="2"></textarea>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="modalCurrentQuantity" class="form-label">Current Stock</label>
-                                    <input type="text" class="form-control" id="modalCurrentQuantity" readonly>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="modalQuantityDeducted" class="form-label">Quantity to Deduct *</label>
-                                    <input type="number" class="form-control" id="modalQuantityDeducted"
-                                        name="quantity_deducted" min="1" required>
-                                    <div class="invalid-feedback">Cannot deduct more than current stock.</div>
-                                </div>
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Remaining Stock (After Deduction)</label>
-                                    <input type="text" class="form-control" id="modalRemainingStock" readonly>
-                                </div>
+                        <!-- Product Details Section - initially hidden, shown via JS -->
+                        <div id="productDetailsSection" class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="modalProductName" class="form-label">Item Name</label>
+                                <input type="text" class="form-control" id="modalProductName" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="modalProductType" class="form-label">Product Type</label>
+                                <input type="text" class="form-control" id="modalProductType" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="modalCurrentQuantity" class="form-label">Current Stock Quantity</label>
+                                <input type="text" class="form-control" id="modalCurrentQuantity" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="modalQuantityDeducted" class="form-label">Quantity to Deduct *</label>
+                                <input type="number" class="form-control" id="modalQuantityDeducted"
+                                    name="quantity_deducted" min="1" required>
+                                <div class="invalid-feedback">Quantity must be greater than 0 and not exceed current stock.</div>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Remaining Stock (After Deduction)</label>
+                                <input type="text" class="form-control" id="modalRemainingStock" readonly>
                             </div>
                         </div>
+
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -838,7 +702,6 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Confirmation Modal -->
     <div class="modal fade" id="confirmDeductStockModal" tabindex="-1" aria-labelledby="confirmDeductStockModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -853,9 +716,9 @@ $conn->close();
                         <i class="bx bx-error-circle me-2"></i>
                         <div><strong>Warning:</strong> This action cannot be undone!</div>
                     </div>
-                    
+
                     <p class="mb-3">Are you sure you want to deduct the following stock?</p>
-                    
+
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -864,7 +727,7 @@ $conn->close();
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <strong>Quantity to Deduct:</strong>
-                                <span id="confirmationQuantityDeducted" class="status-badge bg-label-warning"></span>
+                                <span id="confirmationQuantityDeducted" class="badge bg-label-warning"></span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <strong>Current Stock:</strong>
@@ -890,7 +753,7 @@ $conn->close();
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Core JS -->
     <script src="assets/vendor/libs/jquery/jquery.js"></script>
     <script src="assets/vendor/libs/popper/popper.js"></script>
     <script src="assets/vendor/js/bootstrap.js"></script>
@@ -899,11 +762,6 @@ $conn->close();
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize page functionality
-        initializeStockOutPage();
-    });
-
-    function initializeStockOutPage() {
         // Modal elements
         var stockOutModalElement = document.getElementById('stockOutModal');
         var stockOutModal = new bootstrap.Modal(stockOutModalElement);
@@ -914,7 +772,7 @@ $conn->close();
         var modalProductSelect = document.getElementById('modalProductSelect');
         var modalProductIdInput = document.getElementById('modalProductId');
         var modalProductNameInput = document.getElementById('modalProductName');
-        var modalProductDescriptionInput = document.getElementById('modalProductDescription');
+        var modalProductTypeInput = document.getElementById('modalProductType');
         var modalCurrentQuantityInput = document.getElementById('modalCurrentQuantity');
         var modalQuantityDeductedInput = document.getElementById('modalQuantityDeducted');
         var modalRemainingStockInput = document.getElementById('modalRemainingStock');
@@ -928,15 +786,35 @@ $conn->close();
         var confirmationCurrentStock = document.getElementById('confirmationCurrentStock');
         var confirmationRemainingStock = document.getElementById('confirmationRemainingStock');
 
-        // Search functionality
+        // Search functionality for the history table (navbar search)
         var navbarSearch = document.getElementById('navbarSearch');
         var historyTable = document.getElementById('historyTable');
 
-        // Auto-dismiss alerts after 5 seconds
+        // Function to show custom alerts (replaces browser's alert())
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.querySelector('.container-xxl .d-flex.justify-content-between.align-items-center.mb-4').parentNode;
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show mt-3`; // Added mt-3 for spacing
+            alertDiv.innerHTML = `
+                <i class="bx bx-info-circle me-2"></i>
+                <div>${message}</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            // Insert after the page header
+            alertContainer.insertBefore(alertDiv, alertContainer.children[1]); // Assuming first child is header, second is message container
+
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const bsAlert = bootstrap.Alert.getInstance(alertDiv) || new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }, 5000);
+        }
+
+        // Auto-dismiss initial server-side alerts (if any) after 5 seconds
         setTimeout(function() {
             var alerts = document.querySelectorAll('.alert-dismissible');
             alerts.forEach(function(alert) {
-                var bsAlert = new bootstrap.Alert(alert);
+                var bsAlert = bootstrap.Alert.getInstance(alert) || new bootstrap.Alert(alert);
                 bsAlert.close();
             });
         }, 5000);
@@ -953,38 +831,32 @@ $conn->close();
             }
         });
 
-        // Search functionality
+        // Search functionality for history table
         if (navbarSearch && historyTable) {
             navbarSearch.addEventListener('input', function() {
                 var searchTerm = this.value.toLowerCase();
                 var rows = historyTable.querySelectorAll('tbody tr');
-                
+
                 rows.forEach(function(row) {
                     var text = row.textContent.toLowerCase();
                     var shouldShow = text.includes(searchTerm);
                     row.style.display = shouldShow ? '' : 'none';
-                    
-                    // Highlight search terms
-                    if (searchTerm && shouldShow) {
-                        var cells = row.querySelectorAll('td');
-                        cells.forEach(function(cell) {
-                            var originalText = cell.getAttribute('data-original') || cell.innerHTML;
-                            if (!cell.getAttribute('data-original')) {
-                                cell.setAttribute('data-original', originalText);
-                            }
-                            
-                            if (searchTerm.length > 0) {
-                                var regex = new RegExp('(' + searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\                                                <td>
-                                                    <span class="status-badge bg-label-warning">
-                                                        -<?php echo htmlspecialchars($history_item['quantity_deducted']); ?>
-                                                    </span>
-                                                </td>') + ')', 'gi');
-                                cell.innerHTML = originalText.replace(regex, '<span class="search-highlight">$1</span>');
-                            } else {
-                                cell.innerHTML = originalText;
-                            }
-                        });
-                    }
+
+                    var cells = row.querySelectorAll('td');
+                    cells.forEach(function(cell) {
+                        var originalHtml = cell.getAttribute('data-original-html');
+                        if (!originalHtml) {
+                            originalHtml = cell.innerHTML;
+                            cell.setAttribute('data-original-html', originalHtml);
+                        }
+
+                        if (searchTerm.length > 0) {
+                            var regex = new RegExp('(' + searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                            cell.innerHTML = originalHtml.replace(regex, '<span class="search-highlight">$1</span>');
+                        } else {
+                            cell.innerHTML = originalHtml;
+                        }
+                    });
                 });
             });
         }
@@ -1001,6 +873,10 @@ $conn->close();
         modalProductSelect.addEventListener('change', function() {
             updateProductDetails();
             validateForm();
+            // Only focus on quantity if a product is selected
+            if (modalProductSelect.value) {
+                modalQuantityDeductedInput.focus();
+            }
         });
 
         // Quantity input handler
@@ -1010,203 +886,145 @@ $conn->close();
             validateForm();
         });
 
+        // Function to reset all modal fields and state
         function resetModal() {
             modalProductSelect.value = '';
             modalProductIdInput.value = '';
             modalProductNameInput.value = '';
-            modalProductDescriptionInput.value = '';
+            modalProductTypeInput.value = '';
             modalCurrentQuantityInput.value = '';
             modalQuantityDeductedInput.value = '';
             modalRemainingStockInput.value = '';
             productDetailsSection.style.display = 'none';
             deductStockButton.disabled = true;
-            modalQuantityDeductedInput.classList.remove('is-invalid');
+            modalQuantityDeductedInput.classList.remove('is-invalid', 'is-valid');
         }
 
+        // Function to populate product details based on selection
         function updateProductDetails() {
             var selectedOption = modalProductSelect.options[modalProductSelect.selectedIndex];
-            
-            if (selectedOption.value) {
-                var productId = selectedOption.value;
-                var productName = selectedOption.getAttribute('data-name');
-                var productDescription = selectedOption.getAttribute('data-description');
-                var currentQuantity = selectedOption.getAttribute('data-quantity');
 
-                modalProductIdInput.value = productId;
+            if (selectedOption.value) {
+                var itemId = selectedOption.value;
+                var productName = selectedOption.getAttribute('data-product_name');
+                var productType = selectedOption.getAttribute('data-type_product');
+                var currentStock = selectedOption.getAttribute('data-stock');
+
+                modalProductIdInput.value = itemId;
                 modalProductNameInput.value = productName;
-                modalProductDescriptionInput.value = productDescription || 'No description available';
-                modalCurrentQuantityInput.value = currentQuantity;
-                
+                modalProductTypeInput.value = productType || 'N/A';
+                modalCurrentQuantityInput.value = currentStock;
+
                 productDetailsSection.style.display = 'block';
-                
-                setTimeout(function() {
-                    modalQuantityDeductedInput.focus();
-                }, 100);
+
+                // Re-validate quantity and update remaining stock immediately after details are loaded
+                // This ensures correct initial state if input field has old value
+                updateRemainingStock();
+                validateQuantity();
+                validateForm(); // Re-evaluate overall form state
+
             } else {
                 productDetailsSection.style.display = 'none';
+                modalProductIdInput.value = '';
+                modalProductNameInput.value = '';
+                modalProductTypeInput.value = '';
+                modalCurrentQuantityInput.value = '';
+                modalQuantityDeductedInput.value = '';
+                modalRemainingStockInput.value = '';
+                validateForm(); // Update button state after clearing fields
             }
         }
 
+        // Function to update the calculated remaining stock
         function updateRemainingStock() {
             var currentStock = parseInt(modalCurrentQuantityInput.value) || 0;
             var quantityToDeduct = parseInt(modalQuantityDeductedInput.value) || 0;
             var remaining = currentStock - quantityToDeduct;
-            
-            modalRemainingStockInput.value = remaining >= 0 ? remaining : 'Invalid';
-            modalRemainingStockInput.className = remaining >= 0 ? 'form-control text-success' : 'form-control text-danger';
+
+            modalRemainingStockInput.value = remaining;
+            if (remaining < 0) {
+                modalRemainingStockInput.classList.add('text-danger');
+                modalRemainingStockInput.classList.remove('text-success');
+            } else {
+                modalRemainingStockInput.classList.add('text-success');
+                modalRemainingStockInput.classList.remove('text-danger');
+            }
         }
 
+        // Function to validate the quantity to deduct
         function validateQuantity() {
             var quantityToDeduct = parseInt(modalQuantityDeductedInput.value);
             var currentStock = parseInt(modalCurrentQuantityInput.value);
 
             if (isNaN(quantityToDeduct) || quantityToDeduct <= 0 || quantityToDeduct > currentStock) {
                 modalQuantityDeductedInput.classList.add('is-invalid');
+                modalQuantityDeductedInput.classList.remove('is-valid');
                 return false;
             } else {
                 modalQuantityDeductedInput.classList.remove('is-invalid');
+                modalQuantityDeductedInput.classList.add('is-valid');
                 return true;
             }
         }
 
+        // Overall form validation for enabling/disabling the main deduct button
         function validateForm() {
-            var isValid = modalProductSelect.value && 
-                         modalQuantityDeductedInput.value && 
-                         validateQuantity();
-            
-            deductStockButton.disabled = !isValid;
+            var isProductSelected = modalProductSelect.value !== '';
+            var isQuantityInputValid = validateQuantity(); // Check validity of quantity input field
+
+            deductStockButton.disabled = !(isProductSelected && isQuantityInputValid);
+            return isProductSelected && isQuantityInputValid; // Return overall form validity
         }
 
-        // Confirm button handler
+        // Handle click on "Proceed to Deduct" button (from first modal)
         deductStockButton.addEventListener('click', function() {
+            // Re-validate just before showing confirmation, though button should be enabled only if valid
             if (!validateForm()) {
+                showAlert('Please select an item and enter a valid quantity to deduct.', 'danger');
                 return;
             }
 
-            // Populate confirmation modal
+            // Populate confirmation modal with details
             confirmationProductName.textContent = modalProductNameInput.value;
-            confirmationQuantityDeducted.textContent = modalQuantityDeductedInput.value;
+            confirmationQuantityDeducted.textContent = '-' + modalQuantityDeductedInput.value;
             confirmationCurrentStock.textContent = modalCurrentQuantityInput.value;
             confirmationRemainingStock.textContent = modalRemainingStockInput.value;
 
-            stockOutModal.hide();
-            confirmDeductStockModal.show();
+            stockOutModal.hide(); // Hide first modal
+            confirmDeductStockModal.show(); // Show confirmation modal
         });
 
-        // Final confirmation handler
+        // Handle click on "Confirm Deduction" button (from confirmation modal)
         finalConfirmButton.addEventListener('click', function() {
             var loadingSpinner = this.querySelector('.loading-spinner');
-            var buttonText = this.querySelector('i');
-            
+            var buttonIcon = this.querySelector('i');
+
             // Show loading state
-            loadingSpinner.style.display = 'inline-block';
-            buttonText.style.display = 'none';
-            this.disabled = true;
-            
+            if (loadingSpinner) { // Check for existence before manipulating
+                loadingSpinner.style.display = 'inline-block';
+            }
+            if (buttonIcon) { // Check for existence before manipulating
+                buttonIcon.style.display = 'none';
+            }
+            this.disabled = true; // Disable button during processing
+
             // Submit form
             document.getElementById('stockOutForm').submit();
         });
 
-        // Handle modal backdrop clicks
+        // When confirmation modal is hidden, show the first modal again
         confirmDeductStockModalElement.addEventListener('hidden.bs.modal', function() {
+            // Re-enable the finalConfirmButton if it was disabled by loading state
+            finalConfirmButton.disabled = false;
+            var loadingSpinner = finalConfirmButton.querySelector('.loading-spinner');
+            var buttonIcon = finalConfirmButton.querySelector('i');
+            if (loadingSpinner) loadingSpinner.style.display = 'none';
+            if (buttonIcon) buttonIcon.style.display = 'inline-block'; // Restore icon display
+
             stockOutModal.show();
-        });
-
-        console.log('Stock Out page initialized successfully');
-    }
-
-    // Export functionality
-    function exportHistory() {
-        console.log('Exporting stock out history...');
-        alert('Export functionality will be implemented soon!');
-    }
-
-    // Enhanced search with filters
-    function filterHistory(filterType) {
-        const rows = document.querySelectorAll('#historyTable tbody tr');
-        const currentDate = new Date();
-        
-        rows.forEach(row => {
-            const dateCell = row.cells[4];
-            if (!dateCell) return;
-            
-            const dateText = dateCell.textContent;
-            const rowDate = new Date(dateText);
-            let shouldShow = true;
-            
-            switch(filterType) {
-                case 'today':
-                    shouldShow = rowDate.toDateString() === currentDate.toDateString();
-                    break;
-                case 'week':
-                    const weekAgo = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    shouldShow = rowDate >= weekAgo;
-                    break;
-                case 'month':
-                    shouldShow = rowDate.getMonth() === currentDate.getMonth() && 
-                               rowDate.getFullYear() === currentDate.getFullYear();
-                    break;
-                default:
-                    shouldShow = true;
-            }
-            
-            row.style.display = shouldShow ? '' : 'none';
-        });
-    }
-
-    // Print optimization
-    window.addEventListener('beforeprint', function() {
-        document.querySelectorAll('.btn, .modal, .dropdown').forEach(el => {
-            el.style.display = 'none';
-        });
-    });
-
-    window.addEventListener('afterprint', function() {
-        document.querySelectorAll('.btn, .modal, .dropdown').forEach(el => {
-            el.style.display = '';
         });
     });
     </script>
-
-    <!-- Print Styles -->
-    <style media="print">
-        .layout-menu,
-        .layout-navbar,
-        .content-footer,
-        .action-buttons,
-        .btn,
-        .modal,
-        .dropdown {
-            display: none !important;
-        }
-        
-        .content-wrapper {
-            margin: 0 !important;
-            padding: 20px !important;
-        }
-        
-        .card {
-            box-shadow: none !important;
-            border: 1px solid #000;
-            page-break-inside: avoid;
-        }
-        
-        .table {
-            font-size: 12px;
-        }
-        
-        .table th,
-        .table td {
-            padding: 8px 4px;
-            border: 1px solid #000;
-        }
-        
-        .page-title::after {
-            content: " - Printed on " attr(data-print-date);
-            font-size: 12px;
-            color: #666;
-        }
-    </style>
 </body>
 
 </html>
