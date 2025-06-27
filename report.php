@@ -12,33 +12,22 @@ if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
     exit;
 }
 
-// Database connection
+// Database connection details
 $host = 'localhost';
 $user = 'root';
 $pass = '';
 $dbname = 'inventory_system';
-
-// Initialize user variables
-$profile_link = "#";
-$current_user_name = "User";
-$current_user_role = "User";
-$current_user_avatar = "1.png";
+$conn = null;
 
 // Helper function to get avatar background color based on position
 function getAvatarColor($position) {
     switch (strtolower($position)) {
-        case 'admin':
-            return 'primary';
-        case 'super-admin':
-            return 'danger';
-        case 'moderator':
-            return 'warning';
-        case 'manager':
-            return 'success';
-        case 'staff':
-            return 'info';
-        default:
-            return 'secondary';
+        case 'admin': return 'primary';
+        case 'super-admin': return 'danger';
+        case 'moderator': return 'warning';
+        case 'manager': return 'success';
+        case 'staff': return 'info';
+        default: return 'secondary';
     }
 }
 
@@ -57,7 +46,7 @@ function getProfilePicture($profile_picture, $full_name) {
 // Try to establish database connection with error handling
 try {
     $conn = mysqli_connect($host, $user, $pass, $dbname);
-    
+
     if (!$conn) {
         throw new Exception("Connection failed: " . mysqli_connect_error());
     }
@@ -68,117 +57,184 @@ try {
     // Session check and user profile link logic
     if (isset($_SESSION['user_id']) && $conn) {
         $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
-        
+
         // Fetch current user details from database
         $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
         $user_result = mysqli_query($conn, $user_query);
-        
+
         if ($user_result && mysqli_num_rows($user_result) > 0) {
             $user_data = mysqli_fetch_assoc($user_result);
-            
+
             // Set user information
             $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
             $current_user_role = $user_data['position'];
             $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
-            
+
             // Profile link goes to user-profile.php with their ID
             $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
         }
     }
 
-} catch (Exception $e) {
-    $error = "Error: " . $e->getMessage();
+    // Initialize variables for report data and summaries
+    $sales_data = [];
+    $purchases_data = [];
+    $report_data = [];
+
+    $total_sales_transactions = 0;
+    $total_sales_quantity = 0;
+    $total_revenue = 0;
+    $average_order = 0;
+    $total_purchases_quantity = 0;
+    $error_message = ''; // Initialize error message
+
+    // Initialize filter variables to prevent undefined variable warnings
+    $from_date = '';
+    $to_date = '';
+    $item_id_filter = '';
+    $transaction_type_filter = 'all';
+
+    // Check if search form was submitted
+    $search_submitted = isset($_GET['search_report']) || 
+                       (!empty($_GET['from_date']) && !empty($_GET['to_date'])) ||
+                       !empty($_GET['item_id_filter']) ||
+                       (isset($_GET['transaction_type_filter']) && $_GET['transaction_type_filter'] !== 'all');
+
+    // Only fetch data if search was submitted
+    if ($search_submitted) {
+
+    // --- Server-side Filtering and Data Fetching using UNION ALL ---
+
+    // Sanitize and get filter parameters from the GET request
+    $from_date = isset($_GET['from_date']) ? mysqli_real_escape_string($conn, $_GET['from_date']) : '';
+    $to_date = isset($_GET['to_date']) ? mysqli_real_escape_string($conn, $_GET['to_date']) : '';
+    $item_id_filter = isset($_GET['item_id_filter']) ? mysqli_real_escape_string($conn, $_GET['item_id_filter']) : '';
+    // Removed category_filter from $_GET as it's being removed
+    $transaction_type_filter = isset($_GET['transaction_type_filter']) ? mysqli_real_escape_string($conn, $_GET['transaction_type_filter']) : 'all';
+
+    // Base query parts
+    $sales_query_part = "
+        SELECT
+            soh.transaction_date AS date,
+            soh.product_id AS item_id,
+            ii.product_name AS description,
+            ii.type_product AS category,
+            soh.quantity_deducted AS quantity,
+            ii.price AS unit_price,
+            (soh.quantity_deducted * ii.price) AS total,
+            'Stock Out (Sales)' AS type_display
+        FROM stock_out_history AS soh
+        JOIN inventory_item AS ii ON soh.product_id = ii.itemID
+        WHERE 1=1
+    ";
+
+    $purchases_query_part = "
+        SELECT
+            sih.transaction_date AS date,
+            sih.product_id AS item_id,
+            ii.product_name AS description,
+            ii.type_product AS category,
+            sih.quantity_added AS quantity,
+            ii.price AS unit_price,
+            (sih.quantity_added * ii.price) AS total,
+            'Stock In (Purchases)' AS type_display
+        FROM stock_in_history AS sih
+        JOIN inventory_item AS ii ON sih.product_id = ii.itemID
+        WHERE 1=1
+    ";
+
+    // Common conditions for both sales and purchases
+    $common_conditions = "";
+
+    // Add date filter
+    if (!empty($from_date) && !empty($to_date)) {
+        $common_conditions .= " AND combined.date BETWEEN '$from_date' AND '$to_date'";
+    }
+
+    // Add item ID filter
+    if (!empty($item_id_filter)) {
+        $common_conditions .= " AND combined.item_id = '$item_id_filter'";
+    }
+
+    // Construct the final query using UNION ALL
+    $final_query_parts = [];
+    if ($transaction_type_filter == 'all' || $transaction_type_filter == 'stock_out') {
+        $final_query_parts[] = "($sales_query_part)";
+    }
+    if ($transaction_type_filter == 'all' || $transaction_type_filter == 'stock_in') {
+        $final_query_parts[] = "($purchases_query_part)";
+    }
+
+    if (empty($final_query_parts)) {
+        // Fallback if no specific type is selected, or if the filter is set to 'all' implicitly
+        $base_union_query = "($sales_query_part) UNION ALL ($purchases_query_part)";
+    } else {
+        $base_union_query = implode(" UNION ALL ", $final_query_parts);
+    }
+
+    // Apply common conditions as an outer WHERE clause on the combined set
+    $final_query = "SELECT * FROM ($base_union_query) AS combined WHERE 1=1 " . $common_conditions . " ORDER BY date DESC";
+
+
+    // Execute the final combined query
+    $report_result = mysqli_query($conn, $final_query);
+    if (!$report_result) {
+        $error_message .= "Database query failed: " . mysqli_error($conn) . "<br>";
+    } else {
+        $report_data = mysqli_fetch_all($report_result, MYSQLI_ASSOC);
+    }
+
+    // Recalculate sales and purchases data from the combined report_data for summaries
+    $sales_data = array_filter($report_data, function($row) { return $row['type_display'] === 'Stock Out (Sales)'; });
+    $purchases_data = array_filter($report_data, function($row) { return $row['type_display'] === 'Stock In (Purchases)'; });
+
+    // Calculate totals from filtered and separated data
+    $total_sales_transactions = count($sales_data);
+    $total_sales_quantity = array_sum(array_column($sales_data, 'quantity'));
+    $total_revenue = array_sum(array_column($sales_data, 'total'));
+    $average_order = $total_sales_transactions > 0 ? $total_revenue / $total_sales_transactions : 0;
+    $total_purchases_quantity = array_sum(array_column($purchases_data, 'quantity'));
+
+
+    // Get all distinct categories for the filter dropdown
+    $category_query = "SELECT DISTINCT type_product FROM inventory_item ORDER BY type_product";
+    $category_result = mysqli_query($conn, $category_query);
+    $categories = [];
+    if ($category_result) {
+        while ($cat_row = mysqli_fetch_assoc($category_result)) {
+            $categories[] = $cat_row['type_product'];
+        }
+    }
+
+    // Get all distinct items for the filter dropdown
+    $items_query = "SELECT itemID, product_name FROM inventory_item ORDER BY product_name";
+    $items_result = mysqli_query($conn, $items_query);
+    $all_items = [];
+    if ($items_result) {
+        while ($item_row = mysqli_fetch_assoc($items_result)) {
+            $all_items[] = $item_row;
+        }
+    }
+
+} else {
+    // No search submitted yet - show empty state
+    $report_data = [];
+    $sales_data = [];
+    $purchases_data = [];
+    $total_sales_transactions = 0;
+    $total_sales_quantity = 0;
+    $total_revenue = 0;
+    $average_order = 0;
+    $total_purchases_quantity = 0;
 }
 
-// Sample report data - replace with actual database queries
-$sample_reports = [
-    [
-        'id' => 1,
-        'date' => '2024-03-20',
-        'item_id' => 'INV-001',
-        'description' => 'Wireless Bluetooth Headphones',
-        'quantity' => 2,
-        'price' => 89.99,
-        'total' => 179.98,
-        'category' => 'electronics'
-    ],
-    [
-        'id' => 2,
-        'date' => '2024-03-21',
-        'item_id' => 'INV-002',
-        'description' => 'Cotton T-Shirt Premium',
-        'quantity' => 5,
-        'price' => 24.99,
-        'total' => 124.95,
-        'category' => 'clothing'
-    ],
-    [
-        'id' => 3,
-        'date' => '2024-03-22',
-        'item_id' => 'INV-003',
-        'description' => 'Gaming Mechanical Keyboard',
-        'quantity' => 1,
-        'price' => 179.99,
-        'total' => 179.99,
-        'category' => 'electronics'
-    ],
-    [
-        'id' => 4,
-        'date' => '2024-03-23',
-        'item_id' => 'INV-004',
-        'description' => 'USB Drive 32GB',
-        'quantity' => 3,
-        'price' => 45.00,
-        'total' => 135.00,
-        'category' => 'electronics'
-    ],
-    [
-        'id' => 5,
-        'date' => '2024-03-24',
-        'item_id' => 'INV-005',
-        'description' => 'Power Bank 10000mAh',
-        'quantity' => 2,
-        'price' => 89.00,
-        'total' => 178.00,
-        'category' => 'electronics'
-    ],
-    [
-        'id' => 6,
-        'date' => '2024-03-25',
-        'item_id' => 'INV-006',
-        'description' => 'Smartphone Case',
-        'quantity' => 4,
-        'price' => 25.50,
-        'total' => 102.00,
-        'category' => 'electronics'
-    ],
-    [
-        'id' => 7,
-        'date' => '2024-03-26',
-        'item_id' => 'INV-007',
-        'description' => 'Wireless Charger',
-        'quantity' => 1,
-        'price' => 65.00,
-        'total' => 65.00,
-        'category' => 'electronics'
-    ],
-    [
-        'id' => 8,
-        'date' => '2024-03-27',
-        'item_id' => 'INV-008',
-        'description' => 'Bluetooth Speaker',
-        'quantity' => 2,
-        'price' => 120.00,
-        'total' => 240.00,
-        'category' => 'electronics'
-    ]
-];
+} catch (Exception $e) {
+    $error_message = "Error: " . $e->getMessage();
+}
 
-// Calculate totals for initial display
-$total_transactions = count($sample_reports);
-$total_quantity = array_sum(array_column($sample_reports, 'quantity'));
-$total_revenue = array_sum(array_column($sample_reports, 'total'));
-$average_order = $total_transactions > 0 ? $total_revenue / $total_transactions : 0;
+// Close database connection
+if ($conn) {
+    mysqli_close($conn);
+}
 ?>
 
 <!DOCTYPE html>
@@ -195,28 +251,22 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     <meta name="description" content="Sales and Inventory Reports" />
 
-    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/inventomo.ico" />
 
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
         rel="stylesheet" />
 
-    <!-- Icons -->
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
 
-    <!-- Core CSS -->
     <link rel="stylesheet" href="assets/vendor/css/core.css" class="template-customizer-core-css" />
     <link rel="stylesheet" href="assets/vendor/css/theme-default.css" class="template-customizer-theme-css" />
     <link rel="stylesheet" href="assets/css/demo.css" />
 
-    <!-- Vendors CSS -->
     <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
 
-    <!-- Page CSS -->
     <style>
     .content-header {
         display: flex;
@@ -286,6 +336,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
     .btn-refresh:hover {
         background-color: #5f63f2;
+        color: white;
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(105, 108, 255, 0.2);
     }
@@ -503,30 +554,84 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
     }
 
     .summary-section {
-        padding: 1.5rem;
-        background-color: #f8f9fa;
-        border-top: 1px solid #d9dee3;
+        padding: 2rem 1.5rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-bottom: 1px solid #d9dee3;
     }
 
     .summary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
     }
 
     .summary-card {
         background: white;
         padding: 1.5rem;
-        border-radius: 0.5rem;
+        border-radius: 0.75rem;
         border: 1px solid #d9dee3;
-        text-align: center;
         box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.1);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .summary-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #696cff, #5f63f2);
+        opacity: 0;
+        transition: opacity 0.3s ease;
     }
 
     .summary-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 0.5rem 1rem rgba(161, 172, 184, 0.2);
+        transform: translateY(-4px);
+        box-shadow: 0 0.75rem 1.5rem rgba(161, 172, 184, 0.25);
+        border-color: #696cff;
+    }
+
+    .summary-card:hover::before {
+        opacity: 1;
+    }
+
+    .summary-card.revenue {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border-color: #28a745;
+    }
+
+    .summary-card.revenue::before {
+        background: linear-gradient(90deg, #28a745, #218838);
+    }
+
+    .summary-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #696cff 0%, #5f63f2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.5rem;
+        flex-shrink: 0;
+        box-shadow: 0 0.25rem 0.5rem rgba(105, 108, 255, 0.3);
+    }
+
+    .summary-card.revenue .summary-icon {
+        background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        box-shadow: 0 0.25rem 0.5rem rgba(40, 167, 69, 0.3);
+    }
+
+    .summary-content {
+        flex: 1;
+        min-width: 0;
     }
 
     .summary-label {
@@ -535,17 +640,45 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 0.5rem;
-        font-weight: 500;
+        font-weight: 600;
     }
 
     .summary-value {
         font-size: 1.75rem;
         font-weight: 700;
         color: #374151;
+        line-height: 1.2;
+        margin: 0;
     }
 
     .summary-card.revenue .summary-value {
-        color: #28a745;
+        color: #155724;
+    }
+
+    /* Styling for when no search has been performed */
+    .summary-card.no-data-state {
+        background: #f8f9fa;
+        border-color: #dee2e6;
+        opacity: 0.7;
+    }
+
+    .summary-card.no-data-state .summary-icon {
+        background: #6c757d;
+        box-shadow: 0 0.25rem 0.5rem rgba(108, 117, 125, 0.3);
+    }
+
+    .summary-card.no-data-state .summary-value {
+        color: #6c757d;
+    }
+
+    .summary-card.no-data-state:hover {
+        transform: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.1);
+        border-color: #dee2e6;
+    }
+
+    .summary-card.no-data-state::before {
+        display: none;
     }
 
     .pagination-wrapper {
@@ -684,6 +817,22 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 
         .summary-grid {
             grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .summary-card {
+            padding: 1rem;
+            gap: 0.75rem;
+        }
+
+        .summary-icon {
+            width: 50px;
+            height: 50px;
+            font-size: 1.25rem;
+        }
+
+        .summary-value {
+            font-size: 1.5rem;
         }
 
         .pagination-wrapper {
@@ -709,51 +858,20 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
             min-width: 800px;
         }
     }
-
-    body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    .page-title {
-        color: white;
-        font-size: 2.0rem;
-        font-weight: bold;
-    }
     </style>
 
-    <!-- Helpers -->
     <script src="assets/vendor/js/helpers.js"></script>
     <script src="assets/js/config.js"></script>
 </head>
 
 <body>
-    <!-- Layout wrapper -->
     <div class="layout-wrapper layout-content-navbar">
         <div class="layout-container">
-            <!-- Menu -->
             <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -766,7 +884,6 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                 <div class="menu-inner-shadow"></div>
 
                 <ul class="menu-inner py-1">
-                    <!-- Dashboard -->
                     <li class="menu-item">
                         <a href="index.php" class="menu-link">
                             <i class="menu-icon tf-icons bx bx-home-circle"></i>
@@ -779,7 +896,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
+                            <i class="menu-icon tf-icons bx bx-card"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -797,7 +914,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -818,11 +935,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                     </li>
                 </ul>
             </aside>
-            <!-- / Menu -->
-
-            <!-- Layout container -->
             <div class="layout-page">
-                <!-- Navbar -->
                 <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
                     id="layout-navbar">
                     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
@@ -832,7 +945,6 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                     </div>
 
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-                        <!-- Search -->
                         <div class="navbar-nav align-items-center">
                             <div class="nav-item d-flex align-items-center">
                                 <i class="bx bx-search fs-4 lh-0"></i>
@@ -840,10 +952,7 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                     aria-label="Search..." />
                             </div>
                         </div>
-                        <!-- /Search -->
-
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
-                            <!-- User -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
@@ -851,9 +960,9 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                         <?php
                                         $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
                                         if ($navbar_pic): ?>
-                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
@@ -861,13 +970,11 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div
-                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                                     <?php if ($navbar_pic): ?>
-                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
-                                                        alt="Profile Picture">
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                                     <?php else: ?>
-                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                                     <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
@@ -891,6 +998,12 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                         </a>
                                     </li>
                                     <li>
+                                        <a class="dropdown-item" href="#">
+                                            <i class="bx bx-cog me-2"></i>
+                                            <span class="align-middle">Settings</span>
+                                        </a>
+                                    </li>
+                                    <li>
                                         <div class="dropdown-divider"></div>
                                     </li>
                                     <li>
@@ -901,26 +1014,18 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                     </li>
                                 </ul>
                             </li>
-                            <!--/ User -->
-                        </ul>
+                            </ul>
                     </div>
                 </nav>
-                <!-- / Navbar -->
-
-                <!-- Content wrapper -->
                 <div class="content-wrapper">
-                    <!-- Content -->
                     <div class="container-xxl flex-grow-1 container-p-y">
-                        <!-- Page Header -->
                         <div class="content-header">
                             <h4 class="page-title">
-                                <i class="bx bxs-report"></i>Sales Report Analytics
+                                <i class="bx bxs-report"></i>Report
                             </h4>
                         </div>
 
-                        <!-- Report Card -->
                         <div class="report-card" style="position: relative;">
-                            <!-- Loading Overlay -->
                             <div class="loading-overlay" id="loadingOverlay">
                                 <div class="loading-spinner">
                                     <i class="bx bx-loader-alt bx-spin"></i>
@@ -941,65 +1046,115 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                 </div>
                             </div>
 
-                            <!-- Filters Section -->
-                            <div class="filters-section">
-                                <div class="filter-row">
-                                    <label class="filter-label">Date Range:</label>
-                                    <input type="date" class="filter-input" id="fromDate" placeholder="From Date">
-                                    <span class="date-separator">to</span>
-                                    <input type="date" class="filter-input" id="toDate" placeholder="To Date">
-                                    <span class="filter-note">Filter by transaction date</span>
-                                </div>
-                                <div class="filter-row">
-                                    <label class="filter-label">Item Search:</label>
-                                    <input type="text" class="filter-input" id="itemFilter"
-                                        placeholder="Search by Item ID or Description">
-                                    <select class="filter-input" id="categoryFilter">
-                                        <option value="">All Categories</option>
-                                        <option value="electronics">Electronics</option>
-                                        <option value="clothing">Clothing</option>
-                                        <option value="accessories">Accessories</option>
-                                    </select>
-                                    <span class="filter-note">Filter by product category</span>
-                                </div>
-                                <div class="filter-row">
-                                    <label class="filter-label">Amount Range:</label>
-                                    <input type="number" class="filter-input" id="minAmount"
-                                        placeholder="Min Amount (RM)" step="0.01">
-                                    <span class="date-separator">to</span>
-                                    <input type="number" class="filter-input" id="maxAmount"
-                                        placeholder="Max Amount (RM)" step="0.01">
-                                    <span class="filter-note">Filter by transaction amount</span>
+                            <!-- Summary Section moved to top -->
+                            <div class="summary-section">
+                                <div class="summary-grid">
+                                    <div class="summary-card <?php echo !$search_submitted ? 'no-data-state' : ''; ?>">
+                                        <div class="summary-icon">
+                                            <i class="bx bx-transfer"></i>
+                                        </div>
+                                        <div class="summary-content">
+                                            <div class="summary-label">Total Transactions</div>
+                                            <div class="summary-value" id="totalTransactions">
+                                                <?php echo $search_submitted ? count($report_data) : '--'; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="summary-card <?php echo !$search_submitted ? 'no-data-state' : ''; ?>">
+                                        <div class="summary-icon">
+                                            <i class="bx bx-package"></i>
+                                        </div>
+                                        <div class="summary-content">
+                                            <div class="summary-label">Total Stock Out</div>
+                                            <div class="summary-value" id="totalQuantity">
+                                                <?php echo $search_submitted ? $total_sales_quantity : '--'; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="summary-card revenue <?php echo !$search_submitted ? 'no-data-state' : ''; ?>">
+                                        <div class="summary-icon">
+                                            <i class="bx bx-dollar-circle"></i>
+                                        </div>
+                                        <div class="summary-content">
+                                            <div class="summary-label">Total Revenue</div>
+                                            <div class="summary-value" id="totalRevenue">
+                                                <?php echo $search_submitted ? 'RM ' . number_format($total_revenue, 2) : '--'; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="summary-card <?php echo !$search_submitted ? 'no-data-state' : ''; ?>">
+                                        <div class="summary-icon">
+                                            <i class="bx bx-plus-circle"></i>
+                                        </div>
+                                        <div class="summary-content">
+                                            <div class="summary-label">Total Stock In</div>
+                                            <div class="summary-value" id="totalStockIn">
+                                                <?php echo $search_submitted ? $total_purchases_quantity : '--'; ?>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Actions Section -->
-                            <div class="actions-section">
-                                <button class="btn btn-primary" onclick="searchReport()">
-                                    <i class="bx bx-search"></i>Search
-                                </button>
-                                <button class="btn btn-secondary" onclick="resetFilters()">
-                                    <i class="bx bx-refresh"></i>Reset
-                                </button>
-                                <button class="btn btn-success" onclick="generateAdvancedReport()">
-                                    <i class="bx bx-chart"></i>Advanced Report
-                                </button>
-                                <span class="filter-note">Default shows last 30 days</span>
+                            <form method="GET" action="report.php" onsubmit="showLoading()" autocomplete="off"> <!-- Added autocomplete="off" -->
+                                <div class="filters-section">
+                                    <div class="filter-row">
+                                        <label class="filter-label">Date Range:</label>
+                                        <input type="date" class="filter-input" name="from_date" value="<?php echo htmlspecialchars($from_date); ?>" placeholder="From Date">
+                                        <span class="date-separator">to</span>
+                                        <input type="date" class="filter-input" name="to_date" value="<?php echo htmlspecialchars($to_date); ?>" placeholder="To Date">
+                                        <span class="filter-note">Filter by transaction date</span>
+                                    </div>
+                                    <div class="filter-row">
+                                        <label class="filter-label">Item:</label>
+                                        <select class="filter-input" name="item_id_filter">
+                                            <option value="">All Items</option>
+                                            <?php foreach($all_items as $item): ?>
+                                                <option value="<?php echo htmlspecialchars($item['itemID']); ?>" <?php echo $item_id_filter == $item['itemID'] ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($item['product_name']); ?> (ID: <?php echo htmlspecialchars($item['itemID']); ?>)
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <!-- Removed Category Filter Dropdown -->
+                                        <span class="filter-note">Filter by item or category</span>
+                                    </div>
+                                    <div class="filter-row">
+                                        <label class="filter-label">Transaction Type:</label>
+                                        <select class="filter-input" name="transaction_type_filter">
+                                            <option value="all" <?php echo $transaction_type_filter == 'all' ? 'selected' : ''; ?>>All</option>
+                                            <option value="stock_out" <?php echo $transaction_type_filter == 'stock_out' ? 'selected' : ''; ?>>Stock Out (Sales)</option>
+                                            <option value="stock_in" <?php echo $transaction_type_filter == 'stock_in' ? 'selected' : ''; ?>>Stock In (Purchases)</option>
+                                        </select>
+                                        <span class="filter-note">Filter by stock movement</span>
+                                    </div>
+                                </div>
 
-                                <div class="export-group">
-                                    <button class="btn btn-outline" onclick="exportReport()">
-                                        <i class="bx bx-download"></i>Export
+                                <div class="actions-section">
+                                    <button type="submit" class="btn btn-primary" name="search_report">
+                                        <i class="bx bx-search"></i>Search
                                     </button>
-                                    <select class="export-select" id="exportFormat">
-                                        <option value="">Select format</option>
-                                        <option value="excel">Excel (.xlsx)</option>
-                                        <option value="pdf">PDF (.pdf)</option>
-                                        <option value="csv">CSV (.csv)</option>
-                                    </select>
-                                </div>
-                            </div>
+                                    <a href="report.php" class="btn btn-secondary">
+                                        <i class="bx bx-refresh"></i>Reset
+                                    </a>
+                                    <button type="button" class="btn btn-success" onclick="generateAdvancedReport()">
+                                        <i class="bx bx-chart"></i>Advanced Report
+                                    </button>
+                                    <span class="filter-note">Default shows all time</span>
 
-                            <!-- Table Section -->
+                                    <div class="export-group">
+                                        <button class="btn btn-outline" id="exportButton" type="button">
+                                            <i class="bx bx-download"></i>Export
+                                        </button>
+                                        <select class="export-select" id="exportFormat">
+                                            <option value="">Select format</option>
+                                            <option value="excel">Excel (.xlsx)</option>
+                                            <option value="pdf">PDF (.pdf)</option>
+                                            <option value="csv">CSV (.csv)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </form>
+
                             <div class="table-section">
                                 <div class="table-responsive">
                                     <table class="report-table" id="reportTable">
@@ -1008,63 +1163,66 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                                                 <th style="width: 5%;">No.</th>
                                                 <th style="width: 12%;">Date</th>
                                                 <th style="width: 12%;">Item ID</th>
-                                                <th style="width: 35%;">Item Description</th>
+                                                <th style="width: 35%;">Item Name</th>
                                                 <th style="width: 8%;">Qty</th>
-                                                <th style="width: 14%;" class="amount-col">Unit Price</th>
+                                                <th style="width: 14%;" class="amount-col">Unit Price / Cost</th>
                                                 <th style="width: 14%;" class="amount-col">Total</th>
+                                                <th style="width: 10%;">Type</th>
                                             </tr>
                                         </thead>
                                         <tbody id="reportTableBody">
-                                            <?php foreach ($sample_reports as $index => $report): ?>
+                                            <?php if ($search_submitted && !empty($report_data)): ?>
+                                                <?php foreach ($report_data as $index => $report): ?>
+                                                <tr>
+                                                    <td><?php echo $index + 1; ?></td>
+                                                    <td><?php echo date('d-m-Y', strtotime($report['date'])); ?></td>
+                                                    <td><strong><?php echo htmlspecialchars($report['item_id']); ?></strong></td>
+                                                    <td><?php echo htmlspecialchars($report['description']); ?></td>
+                                                    <td><?php echo $report['quantity']; ?></td>
+                                                    <td class="amount-col">RM <?php echo number_format($report['unit_price'], 2); ?></td>
+                                                    <td class="amount-col"><strong>RM <?php echo number_format($report['total'], 2); ?></strong></td>
+                                                    <td><?php echo htmlspecialchars(ucfirst($report['type_display'])); ?></td>
+                                                </tr>
+                                                <?php endforeach; ?>
+                                            <?php elseif ($search_submitted && empty($report_data)): ?>
                                             <tr>
-                                                <td><?php echo $index + 1; ?></td>
-                                                <td><?php echo date('d-m-Y', strtotime($report['date'])); ?></td>
-                                                <td><strong><?php echo htmlspecialchars($report['item_id']); ?></strong>
+                                                <td colspan="8">
+                                                    <div class="no-data">
+                                                        <i class="bx bx-search-alt"></i>
+                                                        <h5>No data found</h5>
+                                                        <p>No transactions match your filter criteria</p>
+                                                    </div>
                                                 </td>
-                                                <td><?php echo htmlspecialchars($report['description']); ?></td>
-                                                <td><?php echo $report['quantity']; ?></td>
-                                                <td class="amount-col">RM
-                                                    <?php echo number_format($report['price'], 2); ?></td>
-                                                <td class="amount-col"><strong>RM
-                                                        <?php echo number_format($report['total'], 2); ?></strong></td>
                                             </tr>
-                                            <?php endforeach; ?>
+                                            <?php else: ?>
+                                            <tr>
+                                                <td colspan="8">
+                                                    <div class="no-data">
+                                                        <i class="bx bx-filter-alt"></i>
+                                                        <h5>Ready to Search</h5>
+                                                        <p>Use the filters above to search for transaction data</p>
+                                                        <div style="margin-top: 1rem;">
+                                                            <button type="submit" class="btn btn-primary" name="search_report" style="margin-right: 0.5rem;">
+                                                                <i class="bx bx-search"></i>Search All Data
+                                                            </button>
+                                                            <span style="color: #6c757d; font-size: 0.875rem;">or apply specific filters</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <?php endif; ?>
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
 
-                            <!-- Summary Section -->
-                            <div class="summary-section">
-                                <div class="summary-grid">
-                                    <div class="summary-card">
-                                        <div class="summary-label">Total Transactions</div>
-                                        <div class="summary-value" id="totalTransactions">
-                                            <?php echo $total_transactions; ?></div>
-                                    </div>
-                                    <div class="summary-card">
-                                        <div class="summary-label">Total Quantity</div>
-                                        <div class="summary-value" id="totalQuantity"><?php echo $total_quantity; ?>
-                                        </div>
-                                    </div>
-                                    <div class="summary-card revenue">
-                                        <div class="summary-label">Total Revenue</div>
-                                        <div class="summary-value" id="totalRevenue">RM
-                                            <?php echo number_format($total_revenue, 2); ?></div>
-                                    </div>
-                                    <div class="summary-card">
-                                        <div class="summary-label">Average Order</div>
-                                        <div class="summary-value" id="averageOrder">RM
-                                            <?php echo number_format($average_order, 2); ?></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Pagination -->
                             <div class="pagination-wrapper">
                                 <div class="pagination-info" id="paginationInfo">
-                                    Showing 1 to <?php echo count($sample_reports); ?> of
-                                    <?php echo count($sample_reports); ?> entries
+                                    <?php if ($search_submitted): ?>
+                                        Showing <?php echo count($report_data); ?> entries
+                                    <?php else: ?>
+                                        No search performed yet
+                                    <?php endif; ?>
                                 </div>
                                 <div class="pagination-controls">
                                     <button class="page-btn" id="prevBtn" disabled>
@@ -1078,16 +1236,10 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                             </div>
                         </div>
                     </div>
-                    <!-- / Content -->
-
-                    <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
-                        <div
-                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>
-                                document.write(new Date().getFullYear());
-                                </script> Inventomo. All rights reserved.
+                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -1095,52 +1247,14 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
                             </div>
                         </div>
                     </footer>
-                    <!-- / Footer -->
-
                     <div class="content-backdrop fade"></div>
                 </div>
-                <!-- Content wrapper -->
+                </div>
             </div>
-            <!-- / Layout page -->
-        </div>
 
-        <!-- Overlay -->
         <div class="layout-overlay layout-menu-toggle"></div>
     </div>
-    <!-- / Layout wrapper -->
-
-    <!-- JavaScript -->
     <script>
-    // Sample data for demonstration (this would come from PHP in a real application)
-    const reportData = <?php echo json_encode($sample_reports); ?>;
-
-    let filteredData = [...reportData];
-    let currentPage = 1;
-    const itemsPerPage = 10;
-
-    // Initialize page
-    document.addEventListener('DOMContentLoaded', function() {
-        initializeReporting();
-    });
-
-    function initializeReporting() {
-        renderTable();
-        updateSummary();
-        setDefaultDates();
-        setupTableSorting();
-        setupKeyboardShortcuts();
-        setupSearchIntegration();
-    }
-
-    // Set default dates (last 30 days)
-    function setDefaultDates() {
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
-
-        document.getElementById('fromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-        document.getElementById('toDate').value = today.toISOString().split('T')[0];
-    }
-
     // Show loading overlay
     function showLoading() {
         document.getElementById('loadingOverlay').style.display = 'flex';
@@ -1151,407 +1265,144 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
         document.getElementById('loadingOverlay').style.display = 'none';
     }
 
-    // Search and filter functionality
-    function searchReport() {
-        showLoading();
-
-        setTimeout(() => {
-            const fromDate = document.getElementById('fromDate').value;
-            const toDate = document.getElementById('toDate').value;
-            const itemFilter = document.getElementById('itemFilter').value.toLowerCase();
-            const categoryFilter = document.getElementById('categoryFilter').value;
-            const minAmount = parseFloat(document.getElementById('minAmount').value) || 0;
-            const maxAmount = parseFloat(document.getElementById('maxAmount').value) || Infinity;
-
-            filteredData = reportData.filter(item => {
-                // Date filter
-                let dateMatch = true;
-                if (fromDate && toDate) {
-                    const itemDate = new Date(item.date);
-                    const startDate = new Date(fromDate);
-                    const endDate = new Date(toDate);
-                    dateMatch = itemDate >= startDate && itemDate <= endDate;
-                }
-
-                // Item filter
-                const itemMatch = !itemFilter ||
-                    item.item_id.toLowerCase().includes(itemFilter) ||
-                    item.description.toLowerCase().includes(itemFilter);
-
-                // Category filter
-                const categoryMatch = !categoryFilter || item.category === categoryFilter;
-
-                // Amount filter
-                const amountMatch = item.total >= minAmount && item.total <= maxAmount;
-
-                return dateMatch && itemMatch && categoryMatch && amountMatch;
-            });
-
-            currentPage = 1;
-            renderTable();
-            updateSummary();
-            updatePagination();
-            hideLoading();
-        }, 800);
-    }
-
-    // Reset all filters
-    function resetFilters() {
-        document.getElementById('fromDate').value = '';
-        document.getElementById('toDate').value = '';
-        document.getElementById('itemFilter').value = '';
-        document.getElementById('categoryFilter').value = '';
-        document.getElementById('minAmount').value = '';
-        document.getElementById('maxAmount').value = '';
-        document.getElementById('exportFormat').value = '';
-
-        filteredData = [...reportData];
-        currentPage = 1;
-        renderTable();
-        updateSummary();
-        updatePagination();
-
-        // Reset to default dates
-        setDefaultDates();
-    }
-
-    // Refresh report data
+    // Refresh report data - reloads the page with a loading spinner
     function refreshReport() {
-        const btn = event.target.closest('.btn-refresh');
-        const originalContent = btn.innerHTML;
-
-        btn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i>Refreshing...';
-        btn.disabled = true;
-
-        setTimeout(() => {
-            // In a real application, this would fetch fresh data from the server
-            filteredData = [...reportData];
-            renderTable();
-            updateSummary();
-            updatePagination();
-
-            btn.innerHTML = originalContent;
-            btn.disabled = false;
-
-            // Update timestamp
-            const timeElement = document.querySelector('.card-actions .filter-note');
-            timeElement.textContent = `Last updated: ${new Date().toLocaleString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            })}`;
-        }, 1500);
+        showLoading();
+        // window.location.href = 'report.php'; // Simply reload to reset all filters
     }
 
-    // Generate advanced report
+    // Generate advanced report (placeholder)
     function generateAdvancedReport() {
         showLoading();
 
         setTimeout(() => {
             hideLoading();
-            alert(
-                'Advanced Report Generated!\n\nThis would typically:\n• Generate detailed analytics\n• Create charts and graphs\n• Provide trend analysis\n• Export comprehensive PDF report\n\nFeature would be fully implemented in production.');
+            alert('Advanced Report Generated!\n\nThis would typically:\n• Generate detailed analytics\n• Create charts and graphs\n• Provide trend analysis\n• Export comprehensive PDF report\n\nFeature would be fully implemented in production.');
         }, 2000);
     }
 
-    // Render table with current filtered data
-    function renderTable() {
-        const tbody = document.getElementById('reportTableBody');
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const pageData = filteredData.slice(startIndex, endIndex);
+    // Export functionality - now redirects to a new PHP script for file generation
+    document.getElementById('exportButton').addEventListener('click', function() {
+        event.preventDefault();
+        const format = document.getElementById('exportFormat').value;
 
-        if (pageData.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="7">
-                        <div class="no-data">
-                            <i class="bx bx-search-alt"></i>
-                            <h5>No data found</h5>
-                            <p>No transactions match your filter criteria</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
+        if (!format) {
+            alert('Please select an export format first.');
             return;
         }
 
-        tbody.innerHTML = pageData.map((item, index) => `
-            <tr>
-                <td>${startIndex + index + 1}</td>
-                <td>${formatDate(item.date)}</td>
-                <td><strong>${item.item_id}</strong></td>
-                <td>${item.description}</td>
-                <td>${item.quantity}</td>
-                <td class="amount-col">RM ${item.price.toFixed(2)}</td>
-                <td class="amount-col"><strong>RM ${item.total.toFixed(2)}</strong></td>
-            </tr>
-        `).join('');
-    }
+        showLoading(); // Show loading spinner immediately
 
-    // Update summary cards
-    function updateSummary() {
-        const totalTransactions = filteredData.length;
-        const totalQuantity = filteredData.reduce((sum, item) => sum + item.quantity, 0);
-        const totalRevenue = filteredData.reduce((sum, item) => sum + item.total, 0);
-        const averageOrder = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+        // Get current filter parameters from the form
+        const form = document.querySelector('form');
+        const formData = new FormData(form);
+        const params = new URLSearchParams(formData);
 
-        document.getElementById('totalTransactions').textContent = totalTransactions;
-        document.getElementById('totalQuantity').textContent = totalQuantity;
-        document.getElementById('totalRevenue').textContent = `RM ${totalRevenue.toFixed(2)}`;
-        document.getElementById('averageOrder').textContent = `RM ${averageOrder.toFixed(2)}`;
-    }
+        // Add the selected export format to parameters
+        params.append('export_format', format);
 
-    // Update pagination info and controls
-    function updatePagination() {
-        const totalItems = filteredData.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-        const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+        // Construct the URL for the new export generation script
+        const exportUrl = 'http://localhost/inventomo-system-main/generate-report-export.php?' + params.toString();
+console.log(exportUrl);
+        // Redirect the browser to this URL to initiate download
+        window.location.href =exportUrl;
+    //     fetch(exportUrl, {
+    //     method: 'GET', // or 'POST', 'PUT', etc.
+    //     // headers: { 'Content-Type': 'application/json' }, // if needed
+    //     // body: JSON.stringify({ key: 'value' }) // for POST/PUT
+    // })
+    // .then(response => response.json()) // or response.text(), etc.
+    // .then(data => {
+    //     console.log('Success:', data);
+    //     // Do something with the response
+    // })
+    // .catch(error => {
+    //     console.error('Error:', error);
+    // });
+        console.log(exportUrl);
+        // Hide loading overlay after a short delay (browser takes over download)
+        // This is a heuristic, as we can't reliably detect when the download starts/completes
+        setTimeout(() => {
+            hideLoading();
+            // Clear the selected format dropdown after triggering download
+            document.getElementById('exportFormat').value = '';
+        }, 1000); // Give enough time for the redirect to happen and download to start
+    });
 
-        document.getElementById('paginationInfo').textContent =
-            `Showing ${startItem} to ${endItem} of ${totalItems} entries`;
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle form submission: show loading overlay
+        const form = document.querySelector('form');
+        form.addEventListener('submit', showLoading);
 
-        document.getElementById('currentPage').textContent = currentPage;
-        document.getElementById('prevBtn').disabled = currentPage <= 1;
-        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
-    }
+        // Hide loading overlay on page load (in case of a fast redirect)
+        hideLoading();
+    });
 
-    // Setup table sorting
-    function setupTableSorting() {
-        const headers = document.querySelectorAll('#reportTable th');
-
-        headers.forEach((header, index) => {
-            if (index > 0 && index < headers.length) { // Skip No. column
-                header.style.cursor = 'pointer';
-                header.addEventListener('click', () => sortTable(index));
-
-                // Add sort indicator
-                header.innerHTML +=
-                    ' <i class="bx bx-sort" style="opacity: 0.5; font-size: 12px; margin-left: 5px;"></i>';
-            }
-        });
-    }
-
-    // Sort table by column
-    function sortTable(columnIndex) {
-        const isAscending = !filteredData.isSorted || filteredData.sortDirection !== 'asc';
-
-        filteredData.sort((a, b) => {
-            let aVal, bVal;
-
-            switch (columnIndex) {
-                case 1: // Date
-                    aVal = new Date(a.date);
-                    bVal = new Date(b.date);
-                    break;
-                case 2: // Item ID
-                    aVal = a.item_id;
-                    bVal = b.item_id;
-                    break;
-                case 3: // Description
-                    aVal = a.description.toLowerCase();
-                    bVal = b.description.toLowerCase();
-                    break;
-                case 4: // Quantity
-                    aVal = a.quantity;
-                    bVal = b.quantity;
-                    break;
-                case 5: // Price
-                    aVal = a.price;
-                    bVal = b.price;
-                    break;
-                case 6: // Total
-                    aVal = a.total;
-                    bVal = b.total;
-                    break;
-                default:
-                    return 0;
-            }
-
-            if (aVal < bVal) return isAscending ? -1 : 1;
-            if (aVal > bVal) return isAscending ? 1 : -1;
-            return 0;
-        });
-
-        filteredData.isSorted = true;
-        filteredData.sortDirection = isAscending ? 'asc' : 'desc';
-
-        // Update sort indicators
-        document.querySelectorAll('#reportTable th i').forEach(icon => {
-            icon.className = 'bx bx-sort';
-            icon.style.opacity = '0.5';
-        });
-
-        const currentIcon = document.querySelectorAll('#reportTable th')[columnIndex].querySelector('i');
-        currentIcon.className = isAscending ? 'bx bx-sort-up' : 'bx bx-sort-down';
-        currentIcon.style.opacity = '1';
-
-        renderTable();
+    // Helper function for capitalizing first letter
+    function ucfirst(str) {
+        if (!str) return str;
+        return str.charAt(0).toUpperCase() + str.slice(1);
     }
 
     // Setup keyboard shortcuts
     function setupKeyboardShortcuts() {
         document.addEventListener('keydown', function(e) {
-            // Ctrl/Cmd + Enter to search
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                searchReport();
-            }
-
             // Ctrl/Cmd + R to reset (prevent default browser refresh)
             if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
                 e.preventDefault();
-                resetFilters();
-            }
-
-            // Ctrl/Cmd + E to export
-            if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
-                e.preventDefault();
-                exportReport();
+                // window.location.href = 'report.php'; // Redirect to reset filters
             }
         });
     }
+    setupKeyboardShortcuts();
 
-    // Setup search integration with navbar
-    function setupSearchIntegration() {
-        const navbarSearch = document.querySelector('input[aria-label="Search..."]');
-        if (navbarSearch) {
-            navbarSearch.addEventListener('keyup', function(e) {
-                if (e.key === 'Enter') {
-                    const searchTerm = this.value;
-                    if (searchTerm.trim()) {
-                        // Set the item filter and trigger search
-                        document.getElementById('itemFilter').value = searchTerm;
-                        searchReport();
+    // Enhanced search in navbar (links to main search filter)
+    document.querySelector('.navbar-nav input[aria-label="Search..."]').addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            const searchTerm = this.value;
+            if (searchTerm.trim()) {
+                // Set the item filter and trigger search
+                const form = document.querySelector('form');
+                const itemFilterSelect = form.querySelector('select[name="item_id_filter"]');
+                 if (itemFilterSelect) {
+                    // Try to find an option that matches the search term in text or value
+                    let foundOption = Array.from(itemFilterSelect.options).find(option =>
+                        option.textContent.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        option.value.toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                    if (foundOption) {
+                        itemFilterSelect.value = foundOption.value; // Select the matching option
+                    } else {
+                        // If no direct match, could default to "All Items" or just not filter by item_id
+                        itemFilterSelect.value = ""; // Default to "All Items"
                     }
+                    showLoading();
+                    form.submit();
                 }
-            });
+            } else {
+                // If search box is cleared, reset filters
+                // window.location.href = 'report.php';
+            }
         }
-    }
+    });
 
-    // Format date for display
-    function formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
-    }
-
-    // Export functionality
-    function exportReport() {
-        const format = document.getElementById('exportFormat').value;
-
-        if (!format) {
-            alert('Please select an export format first');
-            return;
-        }
-
-        // Simulate export process
-        const loadingBtn = event.target;
-        const originalText = loadingBtn.innerHTML;
-        loadingBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i>Exporting...';
-        loadingBtn.disabled = true;
-
-        setTimeout(() => {
-            // Reset button
-            loadingBtn.innerHTML = originalText;
-            loadingBtn.disabled = false;
-
-            // Show success message
-            const summary = {
-                transactions: filteredData.length,
-                quantity: filteredData.reduce((sum, item) => sum + item.quantity, 0),
-                revenue: filteredData.reduce((sum, item) => sum + item.total, 0)
-            };
-
-            alert(
-                `Report exported successfully as ${format.toUpperCase()}!\n\n` +
-                `📊 Export Summary:\n` +
-                `• ${summary.transactions} transactions\n` +
-                `• ${summary.quantity} total items\n` +
-                `• RM ${summary.revenue.toFixed(2)} total revenue\n\n` +
-                `File has been prepared for download.`
-            );
-
-            // Reset export dropdown
-            document.getElementById('exportFormat').value = '';
-
-            // In a real application, you would generate and download the actual file here
-            console.log('Export data:', {
-                format: format,
-                data: filteredData,
-                summary: summary,
-                filters: {
-                    fromDate: document.getElementById('fromDate').value,
-                    toDate: document.getElementById('toDate').value,
-                    itemFilter: document.getElementById('itemFilter').value,
-                    categoryFilter: document.getElementById('categoryFilter').value,
-                    minAmount: document.getElementById('minAmount').value,
-                    maxAmount: document.getElementById('maxAmount').value
-                }
-            });
-        }, 2000);
-    }
-
-    // Pagination controls
+    // Client-side pagination controls (disabled by default as filtering is server-side)
+    // These buttons will currently just reload the page if clicked, as they are disabled by default.
+    // For actual pagination, you'd send `page` and `items_per_page` parameters to PHP.
     document.getElementById('prevBtn').addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderTable();
-            updatePagination();
-        }
+        alert('Pagination not implemented for server-side filtering. Use filters to narrow down results.');
     });
 
     document.getElementById('nextBtn').addEventListener('click', () => {
-        const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderTable();
-            updatePagination();
-        }
+        alert('Pagination not implemented for server-side filtering. Use filters to narrow down results.');
     });
 
-    // Real-time search as user types
-    document.getElementById('itemFilter').addEventListener('input', function() {
-        clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(searchReport, 500); // Debounce search
-    });
+    // Disable pagination buttons by default if not implementing server-side pagination
+    document.getElementById('prevBtn').disabled = true;
+    document.getElementById('nextBtn').disabled = true;
 
-    // Auto-search when filters change
-    document.getElementById('fromDate').addEventListener('change', searchReport);
-    document.getElementById('toDate').addEventListener('change', searchReport);
-    document.getElementById('categoryFilter').addEventListener('change', searchReport);
-
-    // Debounced search for amount fields
-    document.getElementById('minAmount').addEventListener('input', function() {
-        clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(searchReport, 500);
-    });
-
-    document.getElementById('maxAmount').addEventListener('input', function() {
-        clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(searchReport, 500);
-    });
-
-    // Handle export dropdown change
-    document.getElementById('exportFormat').addEventListener('change', function() {
-        if (this.value) {
-            exportReport();
-        }
-    });
-
-    // Initialize with default search after page load
-    setTimeout(() => {
-        searchReport();
-    }, 100);
     </script>
 
-    <!-- Core JS -->
     <script src="assets/vendor/libs/jquery/jquery.js"></script>
     <script src="assets/vendor/libs/popper/popper.js"></script>
     <script src="assets/vendor/js/bootstrap.js"></script>
@@ -1561,10 +1412,3 @@ $average_order = $total_transactions > 0 ? $total_revenue / $total_transactions 
 </body>
 
 </html>
-
-<?php
-// Close database connection
-if ($conn) {
-    mysqli_close($conn);
-}
-?>

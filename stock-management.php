@@ -569,28 +569,6 @@ foreach ($products as $product) {
             margin-bottom: 0.25rem;
         }
     }
-
-    body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
     </style>
 
     <script src="assets/vendor/js/helpers.js"></script>
@@ -604,7 +582,7 @@ foreach ($products as $product) {
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 

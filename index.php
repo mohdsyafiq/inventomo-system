@@ -127,10 +127,10 @@ try {
         }
 
         // Get new staff (recently joined - last 30 days)
-        $new_staff_query = "SELECT Id, full_name, position, date_join, profile_picture 
-                           FROM user_profiles 
-                           WHERE date_join >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) 
-                           ORDER BY date_join DESC 
+        $new_staff_query = "SELECT Id, full_name, position, date_join, profile_picture
+                           FROM user_profiles
+                           WHERE date_join >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                           ORDER BY date_join DESC
                            LIMIT 10";
         $new_staff_result = mysqli_query($conn, $new_staff_query);
         if ($new_staff_result) {
@@ -148,7 +148,7 @@ try {
                 quantity_added AS quantity,
                 transaction_date
             FROM
-                stock_in_historys)
+                stock_in_history)
 
             UNION ALL
 
@@ -179,27 +179,27 @@ try {
         // Generate chart data based on recent activity
         $chart_data = [];
         $product_totals = [];
-        
+
         // Process recent activity for chart
         foreach ($recent_activity as $activity) {
             $product = $activity['product_name'];
             $quantity = (int)$activity['quantity'];
-            
+
             if (!isset($product_totals[$product])) {
                 $product_totals[$product] = 0;
             }
-            
+
             if ($activity['activity_type'] == 'Stock In') {
                 $product_totals[$product] += $quantity;
             } else {
                 $product_totals[$product] -= $quantity;
             }
         }
-        
+
         // Get top 5 products for chart
         arsort($product_totals);
         $chart_data = array_slice($product_totals, 0, 5, true);
-        
+
         // Calculate max value for chart scaling
         $max_value = !empty($chart_data) ? max(array_map('abs', $chart_data)) : 100;
     }
@@ -432,7 +432,7 @@ try {
     }
 
     body {
-    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
                 url('assets/img/backgrounds/inside-background.jpeg');
     background-size: cover;
     background-position: center;
@@ -464,7 +464,7 @@ try {
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -699,19 +699,19 @@ try {
                                     <div class="chart-title">Stock Overview - Recent Activity</div>
                                     <div class="stock-chart">
                                         <?php if (!empty($chart_data)): ?>
-                                            <?php 
-                                            $colors = ['#696cff', '#8592a3', '#71dd37', '#ffab00', '#ff3e1d'];
+                                            <?php
+                                            $colors = ['#690cff', '#690cff', '#690cff', '#690cff', '#690cff'];
                                             $color_index = 0;
-                                            foreach ($chart_data as $product => $total): 
+                                            foreach ($chart_data as $product => $total):
                                                 $height = $max_value > 0 ? abs($total) / $max_value * 100 : 10;
                                                 $height = max($height, 10); // Minimum height for visibility
                                                 $color = $colors[$color_index % count($colors)];
                                             ?>
-                                                <div class="chart-bar" 
+                                                <div class="chart-bar"
                                                      style="height: <?php echo $height; ?>%; background-color: <?php echo $color; ?>;"
                                                      title="<?php echo htmlspecialchars($product) . ': ' . $total; ?>">
                                                 </div>
-                                            <?php 
+                                            <?php
                                                 $color_index++;
                                             endforeach; ?>
                                         <?php else: ?>
@@ -835,7 +835,7 @@ try {
                                                                 </div>
                                                             </td>
                                                             <td>
-                                                                <span class="badge bg-label-<?php 
+                                                                <span class="badge bg-label-<?php
                                                                     $position = strtolower($staff['position']);
                                                                     if ($position == 'admin') echo 'success';
                                                                     elseif ($position == 'manager') echo 'info';
@@ -846,7 +846,7 @@ try {
                                                                 </span>
                                                             </td>
                                                             <td>
-                                                                <?php 
+                                                                <?php
                                                                 if ($staff['date_join']) {
                                                                     echo date('d/M/Y', strtotime($staff['date_join']));
                                                                 } else {
@@ -950,7 +950,7 @@ try {
     // Simple search functionality
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.querySelector('input[aria-label="Search"]');
-        
+
         if (searchInput) {
             searchInput.addEventListener('keyup', function(e) {
                 if (e.key === 'Enter') {

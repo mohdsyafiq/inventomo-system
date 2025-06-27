@@ -47,7 +47,7 @@ if ($result_po->num_rows > 0) {
     $supplier_id = $po_data['supplier_id'];
 
     // Supplier Details Query
-    $sql_supplier = "SELECT * FROM suppliers WHERE id = ?";
+    $sql_supplier = "SELECT * FROM customer_supplier WHERE id = ?";
     $stmt_supplier = $conn->prepare($sql_supplier);
     $stmt_supplier->bind_param("i", $supplier_id);
     $stmt_supplier->execute();
@@ -55,24 +55,51 @@ if ($result_po->num_rows > 0) {
     if ($result_supplier->num_rows > 0) {
         $supplier_data = $result_supplier->fetch_assoc();
     } else {
-        $supplier_data = ['name' => 'N/A', 'contact_person' => 'N/A', 'email' => 'N/A', 'phone' => 'N/A'];
+        // Ensure all expected keys are present even if supplier is not found
+        $supplier_data = [
+            'companyName' => 'N/A',
+            'firstName' => 'N/A',
+            'lastName' => 'N/A',
+            'email' => 'N/A',
+            'phone' => 'N/A'
+        ];
     }
     $stmt_supplier->close();
 
-    // Purchase Order Items Query
+    // Purchase Order Items Query - MODIFIED WITH LEFT JOIN AND COALESCE
     $sql_items = "
-        SELECT poi.*, p.product_name
-        FROM purchase_order_items poi
-        JOIN products p ON poi.product_id = p.id
-        WHERE poi.purchase_order_id = ?
+        SELECT
+            po.id, po.po_number, po.date_ordered, po.total_amount, po.status,
+            cs.companyName AS supplier_name,
+            poi.quantity, poi.cost_price, poi.line_total,
+            COALESCE(ii.product_name, 'Unknown Item') AS product_name, -- Use COALESCE here
+            COALESCE(ii.price, 0.00) AS item_selling_price
+        FROM
+            purchase_orders po
+        JOIN
+            customer_supplier cs ON po.supplier_id = cs.id
+        LEFT JOIN -- Changed to LEFT JOIN to ensure all purchase_order_items are included
+            purchase_order_items poi ON po.id = poi.purchase_order_id
+        LEFT JOIN -- Changed to LEFT JOIN for inventory_item as well
+            inventory_item ii ON poi.item_id = ii.itemID
+        WHERE
+            po.id = ?
     ";
+
+    // Now, use the $sql_items variable with your prepared statement
     $stmt_items = $conn->prepare($sql_items);
     $stmt_items->bind_param("i", $po_id);
     $stmt_items->execute();
     $result_items = $stmt_items->get_result();
+
+    $po_items = [];
+    $total_amount = 0; // Initialize total_amount before summing
+
     while ($row = $result_items->fetch_assoc()) {
         $po_items[] = $row;
-        $total_amount += ($row['quantity'] * $row['cost_price']);
+        // Calculate total_amount based on fetched items (line_total is better if available and correct)
+        // If line_total in DB is correct, use that, otherwise re-calculate as you did:
+        $total_amount += (($row['quantity'] ?? 0) * ($row['cost_price'] ?? 0));
     }
     $stmt_items->close();
 
@@ -90,45 +117,45 @@ function format_rm($amount) {
     return 'RM ' . number_format((float)$amount, 2, '.', ',');
 }
 
-// If modal request, only output the relevant content
+// --- MODAL CONTENT RENDERING (FRAGMENT ONLY) ---
+// If modal request, only output the relevant content (no full HTML document)
 if ($is_modal) {
     ob_start(); // Start output buffering
 ?>
     <div class="card invoice-card" id="invoice-content" style="box-shadow:none; padding:0;">
-        <div class="invoice-header">
+        <div class="invoice-header d-flex justify-content-between align-items-start">
             <div>
-                <h1 class="invoice-title">PURCHASE ORDER</h1>
-                <div class="invoice-details text-muted">
-                    <p class="mb-1"><strong>PO Number:</strong> <?php echo htmlspecialchars($po_data['po_number']); ?></p>
-                    <p class="mb-1"><strong>Order Date:</strong> <?php echo date('F j, Y', strtotime($po_data['order_date'])); ?></p>
-                    <p class="mb-1"><strong>Status:</strong> <span class="badge bg-label-warning"><?php echo htmlspecialchars($po_data['status']); ?></span></p>
+                <div class="app-brand-logo demo">
+                    <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                </div>
+                <div class="company-details text-muted mt-2">
+                    <p class="mb-0">Inventomo Sdn Bhd</p>
+                    <p class="mb-0">988223-U</p>
+                    <p class="mb-0">"Friendly Inventory Management System"</p>
                 </div>
             </div>
             <div class="text-end">
-                <div class="app-brand-logo demo">
-                    <img width="200" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
-                </div>
-                <div class="company-details text-muted mt-2">
-                    <p class="mb-0">123 Inventomo St.</p>
-                    <p class="mb-0">Kuala Lumpur, 50000</p>
-                    <p class="mb-0">Malaysia</p>
+                <h1 class="invoice-title">PURCHASE ORDER</h1>
+                <div class="invoice-details text-muted">
+                    <p class="mb-1"><strong>PO Number:</strong> <?php echo htmlspecialchars($po_data['po_number'] ?? 'N/A'); ?></p>
+                    <p class="mb-1"><strong>Order Date:</strong> <?php echo date('F j, Y', strtotime($po_data['date_ordered'] ?? 'now')); ?></p>
                 </div>
             </div>
         </div>
 
-        <div class="party-details">
-            <div class="col-6">
-                <h5>Vendor</h5>
-                <p class="mb-1"><strong><?php echo htmlspecialchars($supplier_data['name']); ?></strong></p>
-                <p class="mb-1 text-muted"><?php echo htmlspecialchars($supplier_data['contact_person']); ?></p>
-                <p class="mb-1 text-muted"><?php echo htmlspecialchars($supplier_data['email']); ?></p>
-                <p class="mb-0 text-muted"><?php echo htmlspecialchars($supplier_data['phone']); ?></p>
+        <div class="party-details d-flex justify-content-start flex-wrap">
+            <div class="col-6 pe-4">
+                <h4>Vendor</h4>
+                <p class="mb-1"><strong>Company Name:</strong> <?php echo htmlspecialchars($supplier_data['companyName'] ?? 'N/A'); ?></p>
+                <p class="mb-1"><strong>Contact Person:</strong> <?php echo htmlspecialchars(($supplier_data['firstName'] ?? 'N/A') . ' ' . ($supplier_data['lastName'] ?? 'N/A')); ?></p>
+                <p class="mb-1 text-muted"><strong>Email:</strong> <?php echo htmlspecialchars($supplier_data['email'] ?? 'N/A'); ?></p>
+                <p class="mb-0 text-muted"><strong>Phone:</strong> <?php echo htmlspecialchars($supplier_data['phone'] ?? 'N/A'); ?></p>
             </div>
-            <div class="col-6 text-end">
-                <h5>Ship To</h5>
-                <p class="mb-1"><strong>Inventomo Sdn. Bhd.</strong></p>
-                 <p class="mb-1 text-muted">123 Inventomo St.</p>
-                <p class="mb-1 text-muted">Kuala Lumpur, 50000, Malaysia</p>
+            <div class="col-6 ps-4">
+                <h5>Ship to</h4>
+                <p class="mb-1"><strong>Company Name: Inventomo Sdn. Bhd.</strong></p>
+                <p class="mb-1"><strong>Contact Person : Admin . 019-251 5512</strong></p>
+                <p class="mb-1 text-muted">Address : Lot515, Jalan Mahawangsa, Wangsa Maju, Kuala Lumpur, 50000, Malaysia</p>
             </div>
         </div>
 
@@ -136,33 +163,33 @@ if ($is_modal) {
             <table class="table">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>Item</th>
-                        <th>Quantity</th>
-                        <th>Cost Price</th>
-                        <th>Amount</th>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 45%;">Item</th>
+                        <th style="width: 15%; text-align: center;">Quantity</th>
+                        <th style="width: 15%; text-align: right;">Cost Price</th>
+                        <th style="width: 20%; text-align: right;">Amount</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php $i = 1; foreach ($po_items as $item): ?>
                     <tr>
                         <td><?php echo $i++; ?></td>
-                        <td><?php echo htmlspecialchars($item['product_name']); ?></td>
-                        <td><?php echo $item['quantity']; ?></td>
-                        <td><?php echo format_rm($item['cost_price']); ?></td>
-                        <td><?php echo format_rm($item['quantity'] * $item['cost_price']); ?></td>
+                        <td><?php echo htmlspecialchars($item['product_name'] ?? 'N/A'); ?></td>
+                        <td style="text-align: center;"><?php echo htmlspecialchars($item['quantity'] ?? '0'); ?></td>
+                        <td style="text-align: right;"><?php echo format_rm($item['cost_price'] ?? 0); ?></td>
+                        <td style="text-align: right;"><?php echo format_rm(($item['quantity'] ?? 0) * ($item['cost_price'] ?? 0)); ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
 
-        <div class="row mt-4">
+        <div class="row mt-4 d-flex justify-content-between">
             <div class="col-md-6">
                 <h6>Notes:</h6>
-                <p class="text-muted"><?php echo nl2br(htmlspecialchars($po_data['notes'])); ?></p>
+                <p class="text-muted"><?php echo nl2br(htmlspecialchars($po_data['notes'] ?? 'N/A')); ?></p>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-6 d-flex justify-content-end">
                 <div class="totals-section">
                     <div class="d-flex"><span>Subtotal</span> <span><?php echo format_rm($total_amount); ?></span></div>
                     <div class="d-flex"><span>Tax (0%)</span> <span><?php echo format_rm(0); ?></span></div>
@@ -172,10 +199,6 @@ if ($is_modal) {
         </div>
     </div>
 
-    <div class="text-center mt-4">
-        <button class="btn btn-primary btn-print" onclick="window.print()"><i class="bx bx-printer me-1"></i> Print</button>
-        <a href="edit-purchase-order.php?id=<?php echo $po_id; ?>" class="btn btn-warning btn-edit"><i class="bx bx-edit me-1"></i> Edit</a>
-    </div>
 <?php
     $conn->close();
     ob_end_flush(); // Send the buffered output
@@ -184,6 +207,13 @@ if ($is_modal) {
 // If not a modal request, continue to render the full page below
 ?>
 
+---
+
+## Full Page HTML & CSS (Print Button Behavior)
+
+Here's the updated HTML, CSS, and the crucial JavaScript to manage the button visibility.
+
+```html
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
 <head>
@@ -196,9 +226,9 @@ if ($is_modal) {
 
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/inventomo.ico" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)" />
+    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin />
+    <link href="[https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap](https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap)" rel="stylesheet" />
 
     <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
 
@@ -221,7 +251,7 @@ if ($is_modal) {
         }
         .invoice-header {
             display: flex;
-            justify-content: space-between;
+            justify-content: space-between; /* To push logo/company info left and PO details right */
             align-items: flex-start;
             margin-bottom: 2rem;
             border-bottom: 1px solid #eee;
@@ -244,11 +274,11 @@ if ($is_modal) {
         }
         .party-details {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start; /* Aligns both Vendor and Ship To to the left */
             margin-bottom: 2rem;
-            gap: 2rem;
+            gap: 2rem; /* Creates space between Vendor and Ship To columns */
         }
-        .party-details h5 {
+        .party-details h4, .party-details h5 { /* Applied to both h4 and h5 for consistency */
             font-size: 1.1rem;
             font-weight: 600;
             color: #696cff; /* Primary color for headers */
@@ -295,6 +325,11 @@ if ($is_modal) {
             padding-top: 1rem;
             margin-top: 1rem;
         }
+        .action-buttons { /* New class for the button container */
+            display: flex;
+            justify-content: center;
+            margin-top: 2rem;
+        }
         .btn-print, .btn-edit {
             padding: 0.75rem 1.5rem;
             border-radius: 0.375rem;
@@ -322,6 +357,130 @@ if ($is_modal) {
         .badge {
             font-size: 0.8em;
             padding: 0.4em 0.6em;
+        }
+
+        /* --- STYLES TO MOVE MAIN CONTENT LEFT --- */
+        /* This targets the main content container and removes its centering */
+        .content-wrapper > .container-xxl {
+            max-width: none !important;  /* Allow it to expand beyond default max-width */
+            margin-left: 0 !important;    /* Push content to the very left edge */
+            margin-right: 0 !important;  /* Remove any auto right margin */
+            padding-left: 1.5rem; /* Add desired left padding for visual comfort */
+            padding-right: 1.5rem; /* Add desired right padding */
+        }
+
+        /* --- PRINT Specific Styles for A4 Alignment --- */
+        @media print {
+            /* Set paper size to A4 and define print margins */
+            @page {
+                size: A4;
+                margin: 2cm; /* Typical A4 margins (top, right, bottom, left) */
+            }
+
+            /* Hide non-essential layout elements */
+            .layout-wrapper .layout-menu-toggle,
+            .layout-wrapper .layout-overlay,
+            #layout-menu,
+            #layout-navbar,
+            .content-header,
+            .fw-bold.py-3.mb-4,
+            .content-footer,
+            .action-buttons /* Hide the button container on print */
+            {
+                display: none !important;
+            }
+
+            /* Adjust main content for full width within print margins */
+            .layout-page,
+            .content-wrapper,
+            .container-xxl,
+            .container-p-y {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            /* Ensure invoice card takes full width, no shadow/background, and adjusted padding for print */
+            .invoice-card {
+                box-shadow: none !important;
+                background-color: transparent !important;
+                border-radius: 0 !important;
+                margin-top: 0 !important;
+                padding: 0 !important; /* Remove card padding, let @page margin handle it */
+            }
+
+            /* Ensure text is dark and clear for printing */
+            body, p, span, h1, h4, h5, h6, table, td, th {
+                color: #000 !important;
+                font-size: 10pt; /* Adjust base font size for print readability */
+            }
+            .invoice-title {
+                font-size: 24pt !important; /* Larger for header */
+            }
+            .party-details h4, .party-details h5 {
+                font-size: 12pt !important; /* Slightly larger for section headers */
+                color: #000 !important; /* Ensure black for print */
+            }
+            .table th, .table td {
+                font-size: 9pt !important; /* Smaller for table content */
+                border-color: #dee2e6 !important; /* Ensure table borders are visible */
+            }
+            .table thead th {
+                background-color: #f2f2f2 !important; /* Light grey header */
+                -webkit-print-color-adjust: exact;
+                color: #000 !important;
+            }
+            .totals-section {
+                background-color: #f8f8f8 !important; /* Light background for totals */
+                -webkit-print-color-adjust: exact;
+                border: 1px solid #eee;
+            }
+            .totals-section .grand-total {
+                color: #000 !important; /* Ensure black for print */
+            }
+
+            /* Layout adjustments for print */
+            .invoice-header, .party-details {
+                display: flex;
+                flex-direction: row; /* Ensure elements stay in a row */
+                justify-content: space-between;
+                align-items: flex-start;
+            }
+
+            .party-details .col-6 {
+                flex: 0 0 48%; /* Adjust width to fit two columns side-by-side with a small gap */
+                max-width: 48%;
+                box-sizing: border-box;
+            }
+            .party-details .col-6.pe-4 { /* Remove specific padding for print */
+                padding-right: 0 !important;
+            }
+            .party-details .col-6.ps-4 { /* Remove specific padding for print */
+                padding-left: 0 !important;
+            }
+
+            /* Table column widths for A4 */
+            .table th:nth-child(1), .table td:nth-child(1) { width: 5%; }   /* # */
+            .table th:nth-child(2), .table td:nth-child(2) { width: 45%; }  /* Item */
+            .table th:nth-child(3), .table td:nth-child(3) { width: 15%; text-align: center;} /* Quantity */
+            .table th:nth-child(4), .table td:nth-child(4) { width: 15%; text-align: right;} /* Cost Price */
+            .table th:nth-child(5), .table td:nth-child(5) { width: 20%; text-align: right;} /* Amount */
+
+            /* Ensure page breaks don't cut content awkwardly */
+            .table, .invoice-header, .party-details, .totals-section {
+                page-break-inside: avoid;
+            }
+            .table tbody tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+
+            /* Remove padding from body */
+            body {
+                padding: 0 !important;
+                margin: 0 !important; /* Let @page margin handle it */
+            }
         }
     </style>
 
@@ -384,40 +543,59 @@ if ($is_modal) {
                         <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Orders & Billing /</span> View Purchase Order</h4>
 
                         <div class="card invoice-card" id="invoice-content">
-                            <div class="invoice-header">
+                            <div class="invoice-header d-flex justify-content-between align-items-start">
                                 <div>
-                                    <h1 class="invoice-title">PURCHASE ORDER</h1>
-                                    <div class="invoice-details text-muted">
-                                        <p class="mb-1"><strong>PO Number:</strong> <?php echo htmlspecialchars($po_data['po_number']); ?></p>
-                                        <p class="mb-1"><strong>Order Date:</strong> <?php echo date('F j, Y', strtotime($po_data['order_date'])); ?></p>
-                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-label-warning"><?php echo htmlspecialchars($po_data['status']); ?></span></p>
+                                    <div class="app-brand-logo demo">
+                                        <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                                    </div>
+                                    <div class="company-details text-muted mt-2">
+                                        <p class="mb-0">Inventomo Sdn Bhd</p><p class="mb-0">988223-U</p><p class="mb-0">"Friendly Inventory Management System"</p>
                                     </div>
                                 </div>
                                 <div class="text-end">
-                                    <div class="app-brand-logo demo">
-                                        <img width="200" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
-                                    </div>
-                                    <div class="company-details text-muted mt-2">
-                                        <p class="mb-0">123 Inventomo St.</p>
-                                        <p class="mb-0">Kuala Lumpur, 50000</p>
-                                        <p class="mb-0">Malaysia</p>
+                                    <h1 class="invoice-title">PURCHASE ORDER</h1>
+                                    <div class="invoice-details text-muted">
+                                        <p class="mb-1"><strong>PO Number:</strong> <?php echo htmlspecialchars($po_data['po_number'] ?? 'N/A'); ?></p>
+                                        <p class="mb-1"><strong>Order Date:</strong> <?php echo date('F j, Y', strtotime($po_data['date_ordered'] ?? 'now')); ?></p>
+                                        <p class="mb-1">
+                                            <strong>Status:</strong>
+                                            <span class="badge
+                                                <?php
+                                                // Dynamic badge class based on status
+                                                $current_status = strtolower(htmlspecialchars($po_data['status'] ?? 'N/A'));
+                                                switch ($current_status) {
+                                                    case 'pending': echo 'bg-label-warning'; break;
+                                                    case 'approved': echo 'bg-label-success'; break;
+                                                    case 'cancelled': echo 'bg-label-danger'; break;
+                                                    case 'completed': echo 'bg-label-info'; break;
+                                                    default: echo 'bg-label-secondary'; break;
+                                                }
+                                                ?>">
+                                                <?php echo htmlspecialchars($po_data['status'] ?? 'N/A'); ?>
+                                            </span>
+                                            <?php if ($current_status !== 'approved'): // Only show button if not already approved ?>
+                                                <a href="update-purchase-order-status.php?id=<?php echo htmlspecialchars($po_id); ?>&status=Approved"
+                                                   class="btn btn-sm btn-success ms-2">
+                                                   Mark as Approved
+                                                </a>
+                                            <?php endif; ?>
+                                        </p>
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="party-details">
-                                <div class="col-6">
-                                    <h5>Vendor</h5>
-                                    <p class="mb-1"><strong><?php echo htmlspecialchars($supplier_data['name']); ?></strong></p>
-                                    <p class="mb-1 text-muted"><?php echo htmlspecialchars($supplier_data['contact_person']); ?></p>
-                                    <p class="mb-1 text-muted"><?php echo htmlspecialchars($supplier_data['email']); ?></p>
-                                    <p class="mb-0 text-muted"><?php echo htmlspecialchars($supplier_data['phone']); ?></p>
+                            <div class="party-details d-flex justify-content-start flex-wrap">
+                                <div class="col-6 pe-4">
+                                    <h4>Vendor</h4>
+                                    <p class="mb-1"><strong>Company Name:</strong> <?php echo htmlspecialchars($supplier_data['companyName'] ?? 'N/A'); ?></p>
+                                    <p class="mb-1"><strong>Contact Person:</strong> <?php echo htmlspecialchars(($supplier_data['firstName'] ?? 'N/A') . ' ' . ($supplier_data['lastName'] ?? 'N/A')); ?></p>
+                                    <p class="mb-1 text-muted"><strong>Email:</strong> <?php echo htmlspecialchars($supplier_data['email'] ?? 'N/A'); ?></p>
+                                    <p class="mb-1 text-muted"><strong>Phone:</strong> <?php echo htmlspecialchars($supplier_data['phone'] ?? 'N/A'); ?></p>
                                 </div>
-                                <div class="col-6 text-end">
-                                    <h5>Ship To</h5>
-                                    <p class="mb-1"><strong>Inventomo Sdn. Bhd.</strong></p>
-                                     <p class="mb-1 text-muted">123 Inventomo St.</p>
-                                    <p class="mb-1 text-muted">Kuala Lumpur, 50000, Malaysia</p>
+                                <div class="col-6 ps-4">
+                                    <h5>Ship To</h4>
+                                    <p class="mb-1"><strong>Company Name: Inventomo Sdn. Bhd.</strong></p>
+                                    <p class="mb-1"><strong>Contact Person: Admin - 019 251 2254</strong></p>
+                                    <p class="mb-1 text-muted">Address : Lot 515 , Jalan Mahawangsa, Wangsa Maju,Kuala Lumpur, 50000, Malaysia</p>
                                 </div>
                             </div>
 
@@ -425,33 +603,33 @@ if ($is_modal) {
                                 <table class="table">
                                     <thead>
                                         <tr>
-                                            <th>#</th>
-                                            <th>Item</th>
-                                            <th>Quantity</th>
-                                            <th>Cost Price</th>
-                                            <th>Amount</th>
+                                            <th style="width: 5%;">#</th>
+                                            <th style="width: 45%;">Item</th>
+                                            <th style="width: 15%; text-align: center;">Quantity</th>
+                                            <th style="width: 15%; text-align: right;">Cost Price</th>
+                                            <th style="width: 20%; text-align: right;">Amount</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php $i = 1; foreach ($po_items as $item): ?>
                                         <tr>
                                             <td><?php echo $i++; ?></td>
-                                            <td><?php echo htmlspecialchars($item['product_name']); ?></td>
-                                            <td><?php echo $item['quantity']; ?></td>
-                                            <td><?php echo format_rm($item['cost_price']); ?></td>
-                                            <td><?php echo format_rm($item['quantity'] * $item['cost_price']); ?></td>
+                                            <td><?php echo htmlspecialchars($item['product_name'] ?? 'N/A'); ?></td>
+                                            <td style="text-align: center;"><?php echo htmlspecialchars($item['quantity'] ?? '0'); ?></td>
+                                            <td style="text-align: right;"><?php echo format_rm($item['cost_price'] ?? 0); ?></td>
+                                            <td style="text-align: right;"><?php echo format_rm(($item['quantity'] ?? 0) * ($item['cost_price'] ?? 0)); ?></td>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
                             </div>
 
-                            <div class="row mt-4">
+                            <div class="row mt-4 d-flex justify-content-between">
                                 <div class="col-md-6">
                                     <h6>Notes:</h6>
-                                    <p class="text-muted"><?php echo nl2br(htmlspecialchars($po_data['notes'])); ?></p>
+                                    <p class="text-muted"><?php echo nl2br(htmlspecialchars($po_data['notes'] ?? 'N/A')); ?></p>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6 d-flex justify-content-end">
                                     <div class="totals-section">
                                         <div class="d-flex"><span>Subtotal</span> <span><?php echo format_rm($total_amount); ?></span></div>
                                         <div class="d-flex"><span>Tax (0%)</span> <span><?php echo format_rm(0); ?></span></div>
@@ -460,16 +638,38 @@ if ($is_modal) {
                                 </div>
                             </div>
                         </div>
-
-                        <div class="text-center mt-4">
-                            <button class="btn btn-primary btn-print" onclick="window.print()"><i class="bx bx-printer me-1"></i> Print</button>
-                            <a href="edit-purchase-order.php?id=<?php echo $po_id; ?>" class="btn btn-warning btn-edit"><i class="bx bx-edit me-1"></i> Edit</a>
-                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        function handlePrint() {
+            // Get the button container element
+            const actionButtons = document.querySelector('.action-buttons');
+
+            // Hide the button container before printing
+            if (actionButtons) {
+                actionButtons.style.display = 'none';
+            }
+
+            // Trigger the print dialog
+            window.print();
+
+            // Use media query listener to detect when print dialog closes
+            // This is a more reliable way to bring buttons back than setTimeout
+            const mediaQueryList = window.matchMedia('print');
+            mediaQueryList.addListener(function(mql) {
+                if (!mql.matches) {
+                    // If not matching print (i.e., print dialog is closed)
+                    if (actionButtons) {
+                        actionButtons.style.display = 'flex'; // Show buttons again
+                    }
+                }
+            });
+        }
+    </script>
 </body>
 </html>
 <?php $conn->close(); ?>

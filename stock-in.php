@@ -549,7 +549,6 @@ $conn->close();
             opacity: 0;
             transform: translateY(-10px);
         }
-
         to {
             opacity: 1;
             transform: translateY(0);
@@ -615,28 +614,6 @@ $conn->close();
             font-size: 0.875rem;
         }
     }
-
-    body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
     </style>
 
     <script src="assets/vendor/js/helpers.js"></script>
@@ -650,7 +627,7 @@ $conn->close();
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -739,9 +716,9 @@ $conn->close();
                                         <?php
                                         $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
                                         if ($navbar_pic): ?>
-                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
@@ -749,13 +726,11 @@ $conn->close();
                                     <li>
                                         <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div
-                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
                                                     <?php if ($navbar_pic): ?>
-                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
-                                                        alt="Profile Picture">
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                                     <?php else: ?>
-                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                                     <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
@@ -795,14 +770,13 @@ $conn->close();
                                     </li>
                                 </ul>
                             </li>
-                        </ul>
+                            </ul>
                     </div>
                 </nav>
                 <div class="content-wrapper">
                     <div class="container-xxl flex-grow-1 container-p-y">
                         <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h4 class="fw-bold"><span class="text-muted fw-light">Stock Management /</span> Stock In
-                            </h4>
+                            <h4 class="fw-bold"><span class="text-muted fw-light">Stock Management /</span> Stock In</h4>
                             <div class="d-flex gap-2">
                             </div>
                         </div>
@@ -844,8 +818,7 @@ $conn->close();
                                 <i class="bx bx-plus-circle"></i>Stock In Actions
                             </h5>
                             <div class="action-buttons">
-                                <button type="button" class="action-btn btn-primary" data-bs-toggle="modal"
-                                    data-bs-target="#stockInModal">
+                                <button type="button" class="action-btn btn-primary" data-bs-toggle="modal" data-bs-target="#stockInModal">
                                     <i class="bx bx-plus"></i>Add Stock
                                 </button>
                                 <a href="stock-management.php" class="action-btn btn-secondary">
@@ -856,8 +829,7 @@ $conn->close();
                                 </a>
                             </div>
                             <p class="text-muted mt-3">
-                                Click "Add Stock" to initiate a new stock-in transaction, view stock management, or
-                                process stock out operations.
+                                Click "Add Stock" to initiate a new stock-in transaction, view stock management, or process stock out operations.
                             </p>
                         </div>
 
@@ -880,34 +852,31 @@ $conn->close();
                                         </thead>
                                         <tbody>
                                             <?php if (!empty($stock_in_history)): ?>
-                                            <?php foreach ($stock_in_history as $history_item): ?>
-                                            <tr>
-                                                <td><strong><?php echo htmlspecialchars($history_item['id']); ?></strong>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($history_item['product_id']); ?></td>
-                                                <td><?php echo htmlspecialchars($history_item['product_name']); ?></td>
-                                                <td>
-                                                    <span class="badge bg-success">
-                                                        +<?php echo htmlspecialchars($history_item['quantity_added']); ?>
-                                                    </span>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($history_item['username']); ?></td>
-                                                <td><?php echo date('M d, Y H:i', strtotime($history_item['transaction_date'])); ?>
-                                                </td>
-                                            </tr>
-                                            <?php endforeach; ?>
+                                                <?php foreach ($stock_in_history as $history_item): ?>
+                                                    <tr>
+                                                        <td><strong><?php echo htmlspecialchars($history_item['id']); ?></strong></td>
+                                                        <td><?php echo htmlspecialchars($history_item['product_id']); ?></td>
+                                                        <td><?php echo htmlspecialchars($history_item['product_name']); ?></td>
+                                                        <td>
+                                                            <span class="badge bg-success">
+                                                                +<?php echo htmlspecialchars($history_item['quantity_added']); ?>
+                                                            </span>
+                                                        </td>
+                                                        <td><?php echo htmlspecialchars($history_item['username']); ?></td>
+                                                        <td><?php echo date('M d, Y H:i', strtotime($history_item['transaction_date'])); ?></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
                                             <?php else: ?>
-                                            <tr>
-                                                <td colspan="6" class="empty-state">
-                                                    <i class="bx bx-package"></i>
-                                                    <h6>No Stock In History Found</h6>
-                                                    <p>Start by adding your first stock transaction.</p>
-                                                    <button type="button" class="action-btn btn-primary"
-                                                        data-bs-toggle="modal" data-bs-target="#stockInModal">
-                                                        <i class="bx bx-plus"></i>Add First Stock
-                                                    </button>
-                                                </td>
-                                            </tr>
+                                                <tr>
+                                                    <td colspan="6" class="empty-state">
+                                                        <i class="bx bx-package"></i>
+                                                        <h6>No Stock In History Found</h6>
+                                                        <p>Start by adding your first stock transaction.</p>
+                                                        <button type="button" class="action-btn btn-primary" data-bs-toggle="modal" data-bs-target="#stockInModal">
+                                                            <i class="bx bx-plus"></i>Add First Stock
+                                                        </button>
+                                                    </td>
+                                                </tr>
                                             <?php endif; ?>
                                         </tbody>
                                     </table>
@@ -916,12 +885,9 @@ $conn->close();
                         </div>
                     </div>
                     <footer class="content-footer footer bg-footer-theme">
-                        <div
-                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>
-                                document.write(new Date().getFullYear());
-                                </script> Inventomo. All rights reserved.
+                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -931,8 +897,8 @@ $conn->close();
                     </footer>
                     <div class="content-backdrop fade"></div>
                 </div>
+                </div>
             </div>
-        </div>
 
         <div class="layout-overlay layout-menu-toggle"></div>
     </div>
@@ -948,8 +914,7 @@ $conn->close();
                 <form id="stockInForm" method="POST" action="stock-in.php">
                     <div class="modal-body">
                         <input type="hidden" name="action" value="stock_in_submit">
-                        <input type="hidden" id="modalProductId" name="product_id">
-                        <div class="row">
+                        <input type="hidden" id="modalProductId" name="product_id"> <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="modalProductSelect" class="form-label">
@@ -958,13 +923,11 @@ $conn->close();
                                     <select class="form-select" id="modalProductSelect" required>
                                         <option value="">-- Select an item --</option>
                                         <?php foreach ($all_items as $item): ?>
-                                        <option value="<?php echo htmlspecialchars($item['itemID']); ?>"
-                                            data-product_name="<?php echo htmlspecialchars($item['product_name']); ?>"
-                                            data-product_type="<?php echo htmlspecialchars($item['type_product'] ?? ''); ?>"
-                                            data-stock="<?php echo htmlspecialchars($item['stock']); ?>">
-                                            ID: <?php echo htmlspecialchars($item['itemID']); ?> -
-                                            <?php echo htmlspecialchars($item['product_name']); ?>
-                                        </option>
+                                            <option value="<?php echo htmlspecialchars($item['itemID']); ?>"
+                                                    data-product_name="<?php echo htmlspecialchars($item['product_name']); ?>"
+                                                    data-product_type="<?php echo htmlspecialchars($item['type_product'] ?? ''); ?>" data-stock="<?php echo htmlspecialchars($item['stock']); ?>">
+                                                ID: <?php echo htmlspecialchars($item['itemID']); ?> - <?php echo htmlspecialchars($item['product_name']); ?>
+                                            </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
@@ -996,8 +959,7 @@ $conn->close();
                                     <label for="modalQuantityAdded" class="form-label">
                                         <i class="bx bx-plus me-1"></i>Quantity to Add
                                     </label>
-                                    <input type="number" class="form-control" id="modalQuantityAdded"
-                                        name="quantity_added" min="1" required>
+                                    <input type="number" class="form-control" id="modalQuantityAdded" name="quantity_added" min="1" required>
                                     <div class="form-text">Enter the number of units to add to stock</div>
                                 </div>
 
@@ -1005,16 +967,14 @@ $conn->close();
                                     <label class="form-label">
                                         <i class="bx bx-user me-1"></i>Added By
                                     </label>
-                                    <input type="text" class="form-control"
-                                        value="<?php echo htmlspecialchars($current_user_name); ?>" readonly>
+                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($current_user_name); ?>" readonly>
                                 </div>
                             </div>
                         </div>
 
                         <div class="alert alert-info">
                             <i class="bx bx-info-circle me-2"></i>
-                            <strong>Note:</strong> This action will add the specified quantity to the current stock
-                            level and create a transaction record.
+                            <strong>Note:</strong> This action will add the specified quantity to the current stock level and create a transaction record.
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1030,8 +990,7 @@ $conn->close();
         </div>
     </div>
 
-    <div class="modal fade" id="confirmAddStockModal" tabindex="-1" aria-labelledby="confirmAddStockModalLabel"
-        aria-hidden="true">
+    <div class="modal fade" id="confirmAddStockModal" tabindex="-1" aria-labelledby="confirmAddStockModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -1049,8 +1008,7 @@ $conn->close();
 
                         <div class="confirmation-details">
                             <h6>Item: <span id="confirmationProductName" class="text-primary"></span></h6>
-                            <h6>Quantity to Add: <span id="confirmationQuantityAdded" class="text-success">+0</span>
-                            </h6>
+                            <h6>Quantity to Add: <span id="confirmationQuantityAdded" class="text-success">+0</span></h6>
                             <p class="text-muted">This action cannot be undone easily.</p>
                         </div>
                     </div>
@@ -1075,7 +1033,7 @@ $conn->close();
     <script src="assets/js/main.js"></script>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         initializeStockIn();
     });
 
@@ -1086,8 +1044,7 @@ $conn->close();
         var confirmAddStockModal = new bootstrap.Modal(confirmAddStockModalElement);
 
         var modalProductSelect = stockInModalElement.querySelector('#modalProductSelect');
-        var modalProductIdInput = stockInModalElement.querySelector(
-        '#modalProductId'); // Hidden input for product_id (now itemID)
+        var modalProductIdInput = stockInModalElement.querySelector('#modalProductId'); // Hidden input for product_id (now itemID)
         var modalProductNameInput = stockInModalElement.querySelector('#modalProductName');
         var modalProductTypeInput = stockInModalElement.querySelector('#modalProductType'); // Product Type input
         var modalCurrentQuantityInput = stockInModalElement.querySelector('#modalCurrentQuantity');
@@ -1099,7 +1056,7 @@ $conn->close();
         var confirmationQuantityAdded = confirmAddStockModalElement.querySelector('#confirmationQuantityAdded');
 
         // Event listener for when the main stock-in modal is shown
-        stockInModalElement.addEventListener('show.bs.modal', function() {
+        stockInModalElement.addEventListener('show.bs.modal', function () {
             modalProductSelect.value = ""; // Reset dropdown
             updateModalDetails(); // Clear other fields
             modalQuantityAddedInput.value = ''; // Clear quantity input

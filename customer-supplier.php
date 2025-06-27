@@ -6,300 +6,70 @@ ini_set('display_errors', 1);
 // Start session
 session_start();
 
-// Check if user is logged in
-if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
-    header("location: login.php");
-    exit;
-}
-
-// Database connection
+// Database connection details (defined globally for easy access)
 $host = 'localhost';
 $user = 'root';
 $pass = '';
 $dbname = 'inventory_system';
+$conn = null; // Initialize connection variable to null
 
-// Initialize user variables
-$profile_link = "#";
-$current_user_name = "User";
-$current_user_role = "User";
-$current_user_avatar = "1.png";
+// --- GLOBAL HELPER FUNCTIONS (DEFINED EARLY TO ENSURE AVAILABILITY) ---
 
 // Helper function to get avatar background color based on position
 function getAvatarColor($position) {
     switch (strtolower($position)) {
-        case 'admin':
-            return 'primary';
-        case 'super-admin':
-            return 'danger';
-        case 'moderator':
-            return 'warning';
-        case 'manager':
-            return 'success';
-        case 'staff':
-            return 'info';
-        default:
-            return 'secondary';
+        case 'admin': return 'primary';
+        case 'super-admin': return 'danger';
+        case 'moderator': return 'warning';
+        case 'manager': return 'success';
+        case 'staff': return 'info';
+        default: return 'secondary';
     }
 }
 
 // Helper function to get profile picture path
-function getProfilePicture($profile_picture, $full_name) {
-    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
-        $photo_path = 'uploads/photos/' . $profile_picture;
+function getProfilePicture($profile_picture_name, $avatar_path) { // Pass $avatar_path explicitly
+    if (!empty($profile_picture_name) && $profile_picture_name != 'default.jpg' && $profile_picture_name != '1.png') {
+        $photo_path = $avatar_path . $profile_picture_name;
         if (file_exists($photo_path)) {
             return $photo_path;
         }
     }
-    // Return null to show initials instead
-    return null;
-}
-
-// Try to establish database connection with error handling
-try {
-    $conn = mysqli_connect($host, $user, $pass, $dbname);
-    
-    if (!$conn) {
-        throw new Exception("Connection failed: " . mysqli_connect_error());
-    }
-
-    // Set charset to handle special characters
-    mysqli_set_charset($conn, "utf8");
-
-    // Session check and user profile link logic
-    if (isset($_SESSION['user_id']) && $conn) {
-        $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
-        
-        // Fetch current user details from database
-        $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
-        $user_result = mysqli_query($conn, $user_query);
-        
-        if ($user_result && mysqli_num_rows($user_result) > 0) {
-            $user_data = mysqli_fetch_assoc($user_result);
-            
-            // Set user information
-            $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
-            $current_user_role = $user_data['position'];
-            $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
-            
-            // Profile link goes to user-profile.php with their ID
-            $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
-        }
-    }
-
-} catch (Exception $e) {
-    $error_message = "Database Error: " . $e->getMessage();
+    return null; // Returns null to trigger initials generation or fallback
 }
 
 // Function to sanitize input data
 function sanitize_input($data) {
+    global $conn; // Access the global connection object
+
     $data = trim($data);
     $data = stripslashes($data);
-    $data = htmlspecialchars($data);
+    $data = htmlspecialchars($data, ENT_QUOTES, 'UTF-8'); // Ensure proper HTML encoding
+
+    // Only apply mysqli_real_escape_string if connection is established and data is a string
+    // IMPORTANT: For IDs, it's safer to cast to int directly, especially if binding as 'i'.
+    // This function is general, so keep it for strings. For IDs, cast (int) directly.
+    if ($conn && is_object($conn) && is_string($data)) {
+        $data = mysqli_real_escape_string($conn, $data);
+    }
     return $data;
 }
 
-// Initialize filter variables
-$search_term = '';
-$type_filter = '';
-$status_filter = '';
-$country_filter = '';
-$success_message = '';
-$error_message = '';
-
-// Process delete action
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'delete') {
-    $registrationID = sanitize_input($_POST['registrationID']);
-    
-    $delete_query = "DELETE FROM customer_supplier WHERE registrationID = ?";
-    $stmt = mysqli_prepare($conn, $delete_query);
-    
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 's', $registrationID);
-        
-        if (mysqli_stmt_execute($stmt)) {
-            $success_message = "Record has been deleted successfully.";
-        } else {
-            $error_message = "Database Error: " . mysqli_stmt_error($stmt);
-        }
-        mysqli_stmt_close($stmt);
-    } else {
-        $error_message = "Error preparing statement: " . mysqli_error($conn);
-    }
-}
-
-// Process bulk delete action
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'bulk_delete') {
-    if (isset($_POST['selected_ids']) && is_array($_POST['selected_ids'])) {
-        $selected_ids = array_map('sanitize_input', $_POST['selected_ids']);
-        $placeholders = implode(',', array_fill(0, count($selected_ids), '?'));
-        
-        $delete_query = "DELETE FROM customer_supplier WHERE registrationID IN ($placeholders)";
-        $stmt = mysqli_prepare($conn, $delete_query);
-        
-        if ($stmt) {
-            $types = str_repeat('s', count($selected_ids));
-            mysqli_stmt_bind_param($stmt, $types, ...$selected_ids);
-            
-            if (mysqli_stmt_execute($stmt)) {
-                $deleted_count = mysqli_stmt_affected_rows($stmt);
-                $success_message = "Successfully deleted $deleted_count record(s).";
-            } else {
-                $error_message = "Database Error: " . mysqli_stmt_error($stmt);
-            }
-            mysqli_stmt_close($stmt);
-        }
-    }
-}
-
-// Process export action
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'export') {
-    $export_format = sanitize_input($_POST['export_format']);
-    $export_query = "SELECT * FROM customer_supplier WHERE 1=1";
-    
-    // Apply same filters as main query
-    if (!empty($search_term)) {
-        $export_query .= " AND (firstName LIKE '%$search_term%' OR lastName LIKE '%$search_term%' 
-                          OR companyName LIKE '%$search_term%' OR email LIKE '%$search_term%' 
-                          OR registrationID LIKE '%$search_term%')";
-    }
-    if (!empty($type_filter)) {
-        $export_query .= " AND registrationType = '$type_filter'";
-    }
-    if (!empty($status_filter)) {
-        $export_query .= " AND status = '$status_filter'";
-    }
-    if (!empty($country_filter)) {
-        $export_query .= " AND country = '$country_filter'";
-    }
-    
-    $export_query .= " ORDER BY dateRegistered DESC";
-    
-    // Here you would implement actual export functionality
-    $success_message = "Export initiated for $export_format format. File will be downloaded shortly.";
-}
-
-// Process filter form submission
-if (isset($_GET['filter'])) {
-    $search_term = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
-    $type_filter = isset($_GET['type']) ? mysqli_real_escape_string($conn, $_GET['type']) : '';
-    $status_filter = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : '';
-    $country_filter = isset($_GET['country']) ? mysqli_real_escape_string($conn, $_GET['country']) : '';
-}
-
-// Build SQL query with filters
-$sql = "SELECT registrationID, firstName, lastName, companyName, email, phone, registrationType, 
-               status, country, businessType, industry, dateRegistered 
-        FROM customer_supplier WHERE 1=1";
-
-// Add search filter if provided
-if (!empty($search_term)) {
-    $sql .= " AND (firstName LIKE '%$search_term%' OR lastName LIKE '%$search_term%' 
-              OR companyName LIKE '%$search_term%' OR email LIKE '%$search_term%' 
-              OR registrationID LIKE '%$search_term%')";
-}
-
-// Add type filter if provided
-if (!empty($type_filter)) {
-    $sql .= " AND registrationType = '$type_filter'";
-}
-
-// Add status filter if provided
-if (!empty($status_filter)) {
-    $sql .= " AND status = '$status_filter'";
-}
-
-// Add country filter if provided
-if (!empty($country_filter)) {
-    $sql .= " AND country = '$country_filter'";
-}
-
-// Add order by clause
-$sql .= " ORDER BY dateRegistered DESC";
-
-// Execute query
-$result = mysqli_query($conn, $sql);
-
-// Check if query was successful
-if (!$result) {
-    $error_message = "Query failed: " . mysqli_error($conn);
-    // Create empty result set for display
-    $result = mysqli_query($conn, "SELECT * FROM customer_supplier WHERE 1=0");
-}
-
-// Get counts for different types
-$count_query = "
-    SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN registrationType = 'customer' THEN 1 ELSE 0 END) as customers,
-        SUM(CASE WHEN registrationType = 'supplier' THEN 1 ELSE 0 END) as suppliers,
-        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count,
-        SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive_count,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count
-    FROM customer_supplier";
-
-if (!empty($search_term) || !empty($type_filter) || !empty($status_filter) || !empty($country_filter)) {
-    $count_query .= " WHERE 1=1";
-    if (!empty($search_term)) {
-        $count_query .= " AND (firstName LIKE '%$search_term%' OR lastName LIKE '%$search_term%' 
-                          OR companyName LIKE '%$search_term%' OR email LIKE '%$search_term%' 
-                          OR registrationID LIKE '%$search_term%')";
-    }
-    if (!empty($type_filter)) {
-        $count_query .= " AND registrationType = '$type_filter'";
-    }
-    if (!empty($status_filter)) {
-        $count_query .= " AND status = '$status_filter'";
-    }
-    if (!empty($country_filter)) {
-        $count_query .= " AND country = '$country_filter'";
-    }
-}
-
-$count_result = mysqli_query($conn, $count_query);
-$counts = mysqli_fetch_assoc($count_result);
-
-// Get all countries for filter dropdown
-$country_query = "SELECT DISTINCT country FROM customer_supplier ORDER BY country";
-$country_result = mysqli_query($conn, $country_query);
-$countries = [];
-
-if ($country_result) {
-    while ($country_row = mysqli_fetch_assoc($country_result)) {
-        if (!empty($country_row['country'])) {
-            $countries[] = $country_row['country'];
-        }
-    }
-    mysqli_free_result($country_result);
-}
-
-// Country mapping for display
-$country_names = [
-    'MY' => 'Malaysia',
-    'SG' => 'Singapore',
-    'TH' => 'Thailand',
-    'ID' => 'Indonesia',
-    'VN' => 'Vietnam',
-    'PH' => 'Philippines',
-    'US' => 'United States',
-    'GB' => 'United Kingdom',
-    'AU' => 'Australia',
-    'IN' => 'India',
-    'CN' => 'China',
-    'JP' => 'Japan',
-    'KR' => 'South Korea',
-    'other' => 'Other'
-];
-
-function getCountryName($code, $country_names) {
-    return isset($country_names[$code]) ? $country_names[$code] : $code;
+// Global functions for formatting and icons (used in HTML rendering)
+function format_rm_display($amount) {
+    return 'RM ' . number_format((float)$amount, 2, '.', ',');
 }
 
 function formatDate($date) {
+    // Handle null or empty dates gracefully
+    if (empty($date) || $date == '0000-00-00' || $date == '0000-00-00 00:00:00') {
+        return 'N/A';
+    }
     return date('M d, Y', strtotime($date));
 }
 
 function getStatusIcon($status) {
-    switch($status) {
+    switch(strtolower($status)) { // Use strtolower for case-insensitivity
         case 'active': return 'bx-check-circle';
         case 'inactive': return 'bx-x-circle';
         case 'pending': return 'bx-time-five';
@@ -308,10 +78,311 @@ function getStatusIcon($status) {
 }
 
 function getTypeIcon($type) {
-    switch($type) {
+    switch(strtolower($type)) {
         case 'customer': return 'bx-user';
         case 'supplier': return 'bx-store';
         default: return 'bx-user-circle';
+    }
+}
+
+// Country code to full name mapping (made global)
+$country_names = [
+    'MY' => 'Malaysia', 'SG' => 'Singapore', 'TH' => 'Thailand', 'ID' => 'Indonesia',
+    'VN' => 'Vietnam', 'PH' => 'Philippines', 'US' => 'United States', 'GB' => 'United Kingdom',
+    'AU' => 'Australia', 'IN' => 'India', 'CN' => 'China', 'JP' => 'Japan', 'KR' => 'South Korea',
+    'other' => 'Other'
+];
+
+function getCountryName($code, $country_names) {
+    return isset($country_names[$code]) ? $country_names[$code] : $code;
+}
+
+
+// --- BEGIN SCRIPT EXECUTION ---
+// Attempt to establish database connection once at the start
+try {
+    $conn = mysqli_connect($host, $user, $pass, $dbname);
+
+    if (!$conn) {
+        // If connection fails, throw an exception
+        throw new Exception("Connection failed: " . mysqli_connect_error());
+    }
+
+    // Set charset for the connection
+    mysqli_set_charset($conn, "utf8");
+
+    // Check if user is logged in, if not, redirect to login page
+    if (!isset($_SESSION['user_id']) || $_SESSION["loggedin"] !== true) {
+        header("Location: auth-login-basic.html");
+        exit();
+    }
+
+    // Initialize user variables
+    $profile_link = "#";
+    $current_user_name = "User";
+    $current_user_role = "User";
+    $current_user_avatar = "1.png";
+    $avatar_path = "uploads/photos/";
+
+    // Session check and user profile link logic
+    if (isset($_SESSION['user_id'])) {
+        $user_id_from_session = $_SESSION['user_id'];
+        // Use prepared statement for fetching user details
+        $user_query_stmt = mysqli_prepare($conn, "SELECT id, full_name, username, position, profile_picture FROM user_profiles WHERE id = ? LIMIT 1");
+        if ($user_query_stmt) {
+            mysqli_stmt_bind_param($user_query_stmt, "i", $user_id_from_session); // Assuming user_id is int
+            mysqli_stmt_execute($user_query_stmt);
+            $user_result = mysqli_stmt_get_result($user_query_stmt);
+
+            if ($user_result && mysqli_num_rows($user_result) > 0) {
+                $user_data = mysqli_fetch_assoc($user_result);
+
+                $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
+                $current_user_role = $user_data['position'];
+
+                if (!empty($user_data['profile_picture'])) {
+                    $profile_pic_name = $user_data['profile_picture'];
+                    if (file_exists($avatar_path . $profile_pic_name)) {
+                        $current_user_avatar = $profile_pic_name;
+                    } else {
+                        $current_user_avatar = '1.png';
+                    }
+                } else {
+                    $current_user_avatar = '1.png';
+                }
+
+                $profile_link = "user-profile.php?op=view&Id=" . $user_data['id']; // Use lowercase 'id'
+            }
+            mysqli_stmt_close($user_query_stmt);
+        }
+    }
+
+    // Define avatar URL for display
+    $current_user_avatar_url = getProfilePicture($current_user_avatar, $avatar_path);
+
+
+    $success_message = '';
+    $error_message = '';
+
+    // --- AJAX Endpoint for Fetching Single Record Details ---
+    // This block should run early, before any HTML output, if it's an AJAX call
+    if (isset($_GET['action']) && $_GET['action'] == 'fetch_details') {
+        if (isset($_GET['id'])) {
+            $registrationID = (int)$_GET['id']; // Cast to int for ID
+
+            // Ensure all columns expected by the modal are selected
+            $fetch_detail_query = "SELECT registrationID, firstName, lastName, companyName, email, phone, registrationType, status, country, businessType, industry, dateRegistered, address, city, postcode, state, notes
+                                 FROM customer_supplier WHERE registrationID = ?";
+            $stmt = mysqli_prepare($conn, $fetch_detail_query);
+
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, 'i', $registrationID); // Bind as integer
+                mysqli_stmt_execute($stmt);
+                $result = mysqli_stmt_get_result($stmt);
+                $data = mysqli_fetch_assoc($result);
+                mysqli_stmt_close($stmt);
+
+                header('Content-Type: application/json');
+                echo json_encode($data);
+                exit; // IMPORTANT: Exit here to prevent rendering full HTML for AJAX
+            } else {
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Error preparing statement for details fetch: ' . mysqli_error($conn)]);
+                exit;
+            }
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Missing registration ID for details fetch.']);
+            exit;
+        }
+    }
+
+
+    // --- Form Submission Handlers (POST requests) ---
+    if ($_SERVER["REQUEST_METHOD"] == "POST") {
+        if (isset($_POST['action']) && $_POST['action'] == 'delete') {
+            $registrationID = (int)$_POST['registrationID']; // Cast to int
+
+            $delete_query = "DELETE FROM customer_supplier WHERE registrationID = ?";
+            $stmt = mysqli_prepare($conn, $delete_query);
+
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, 'i', $registrationID); // Bind as integer
+                if (mysqli_stmt_execute($stmt)) {
+                    $success_message = "Record has been deleted successfully.";
+                } else {
+                    $error_message = "Database Error: " . mysqli_stmt_error($stmt);
+                }
+                mysqli_stmt_close($stmt);
+            } else {
+                $error_message = "Error preparing statement: " . mysqli_error($conn);
+            }
+        } elseif (isset($_POST['action']) && $_POST['action'] == 'bulk_delete') {
+            if (isset($_POST['selected_ids']) && is_array($_POST['selected_ids'])) {
+                // Ensure IDs are integers for security
+                $selected_ids = array_map('intval', $_POST['selected_ids']); // Use intval for array elements
+                $placeholders = implode(',', array_fill(0, count($selected_ids), '?'));
+
+                $delete_query = "DELETE FROM customer_supplier WHERE registrationID IN ($placeholders)";
+                $stmt = mysqli_prepare($conn, $delete_query);
+
+                if ($stmt) {
+                    // Create type string for bind_param (e.g., 'iii' for 3 integers)
+                    $types = str_repeat('i', count($selected_ids));
+                    mysqli_stmt_bind_param($stmt, $types, ...$selected_ids);
+
+                    if (mysqli_stmt_execute($stmt)) {
+                        $deleted_count = mysqli_stmt_affected_rows($stmt);
+                        $success_message = "Successfully deleted $deleted_count record(s).";
+                    } else {
+                        $error_message = "Database Error: " . mysqli_stmt_error($stmt);
+                    }
+                    mysqli_stmt_close($stmt);
+                } else {
+                    $error_message = "Error preparing statement: " . mysqli_error($conn);
+                }
+            }
+        } elseif (isset($_POST['action']) && $_POST['action'] == 'export') {
+            $export_format = sanitize_input($_POST['export_format']);
+
+            $export_query_conditions = " WHERE 1=1";
+            // Retrieve filter terms from POST and sanitize them
+            $current_search_term = isset($_POST['search']) ? sanitize_input($_POST['search']) : '';
+            $current_type_filter = isset($_POST['type']) ? sanitize_input($_POST['type']) : '';
+            $current_status_filter = isset($_POST['status']) ? sanitize_input($_POST['status']) : '';
+            $current_country_filter = isset($_POST['country']) ? sanitize_input($_POST['country']) : '';
+
+            if (!empty($current_search_term)) {
+                $export_query_conditions .= " AND (firstName LIKE '%" . $current_search_term . "%' OR lastName LIKE '%" . $current_search_term . "%'
+                                     OR companyName LIKE '%" . $current_search_term . "%' OR email LIKE '%" . $current_search_term . "%'
+                                     OR registrationID LIKE '%" . $current_search_term . "%')";
+            }
+            if (!empty($current_type_filter)) {
+                $export_query_conditions .= " AND registrationType = '" . $current_type_filter . "'";
+            }
+            if (!empty($current_status_filter)) {
+                $export_query_conditions .= " AND status = '" . $current_status_filter . "'";
+            }
+            if (!empty($current_country_filter)) {
+                $export_query_conditions .= " AND country = '" . $current_country_filter . "'";
+            }
+
+            $export_query = "SELECT * FROM customer_supplier" . $export_query_conditions . " ORDER BY dateRegistered DESC";
+
+            // This is where actual export logic would go (e.g., generate Excel/CSV/PDF file)
+            $success_message = "Export initiated for " . htmlspecialchars($export_format) . " format. File will be downloaded shortly.";
+        }
+    }
+
+    // Initialize filter variables (for GET requests/display)
+    $search_term = '';
+    $type_filter = '';
+    $status_filter = '';
+    $country_filter = '';
+
+    // Process filter form submission (GET request for initial page load and filters)
+    if (isset($_GET['filter'])) {
+        $search_term = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+        $type_filter = isset($_GET['type']) ? sanitize_input($_GET['type']) : '';
+        $status_filter = isset($_GET['status']) ? sanitize_input($_GET['status']) : '';
+        $country_filter = isset($_GET['country']) ? sanitize_input($_GET['country']) : '';
+    }
+
+    // Build main SQL query with filters for table display
+    $sql = "SELECT registrationID, firstName, lastName, COALESCE(companyName, 'N/A') AS companyName, email, phone, registrationType,
+                     status, country, businessType, industry, dateRegistered
+             FROM customer_supplier WHERE 1=1"; // Added COALESCE to companyName
+
+    // Add search filter if provided
+    if (!empty($search_term)) {
+        $sql .= " AND (firstName LIKE '%" . $search_term . "%' OR lastName LIKE '%" . $search_term . "%'
+                     OR companyName LIKE '%" . $search_term . "%' OR email LIKE '%" . $search_term . "%'
+                     OR registrationID LIKE '%" . $search_term . "%')";
+    }
+
+    // Add type filter if provided
+    if (!empty($type_filter)) {
+        $sql .= " AND registrationType = '" . $type_filter . "'";
+    }
+
+    // Add status filter if provided
+    if (!empty($status_filter)) {
+        $sql .= " AND status = '" . $status_filter . "'";
+    }
+
+    // Add country filter if provided
+    if (!empty($country_filter)) {
+        $sql .= " AND country = '" . $country_filter . "'";
+    }
+
+    // Add order by clause
+    $sql .= " ORDER BY dateRegistered DESC";
+
+    // Execute main query for table data
+    $result = mysqli_query($conn, $sql);
+
+    // Check if query was successful
+    if (!$result) {
+        $error_message = "Query failed: " . mysqli_error($conn);
+        // Create empty result set for display to prevent further errors
+        $result = mysqli_query($conn, "SELECT * FROM customer_supplier WHERE 1=0");
+    }
+
+    // Get counts for different types and statuses (apply filters to counts as well)
+    $count_query = "
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN registrationType = 'customer' THEN 1 ELSE 0 END) as customers,
+            SUM(CASE WHEN registrationType = 'supplier' THEN 1 ELSE 0 END) as suppliers,
+            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count,
+            SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive_count
+        FROM customer_supplier"; // Removed pending_count from here
+
+    if (!empty($search_term) || !empty($type_filter) || !empty($status_filter) || !empty($country_filter)) {
+        $count_query .= " WHERE 1=1";
+        if (!empty($search_term)) {
+            $count_query .= " AND (firstName LIKE '%" . $search_term . "%' OR lastName LIKE '%" . $search_term . "%'
+                                 OR companyName LIKE '%" . $search_term . "%' OR email LIKE '%" . $search_term . "%'
+                                 OR registrationID LIKE '%" . $search_term . "%')";
+        }
+        if (!empty($type_filter)) {
+            $count_query .= " AND registrationType = '" . $type_filter . "'";
+        }
+        if (!empty($status_filter)) {
+            $count_query .= " AND status = '" . $status_filter . "'";
+        }
+        if (!empty($country_filter)) {
+            $count_query .= " AND country = '" . $current_country_filter . "'";
+        }
+    }
+
+    $count_result = mysqli_query($conn, $count_query);
+    $counts = mysqli_fetch_assoc($count_result);
+
+    // Get all distinct countries for the filter dropdown
+    $country_query = "SELECT DISTINCT country FROM customer_supplier ORDER BY country";
+    $country_result = mysqli_query($conn, $country_query);
+    $countries = [];
+
+    if ($country_result) {
+        while ($country_row = mysqli_fetch_assoc($country_result)) {
+            if (!empty($country_row['country'])) {
+                $countries[] = $country_row['country'];
+            }
+        }
+        mysqli_free_result($country_result);
+    }
+
+
+} catch (Exception $e) {
+    // Catch database connection errors or other exceptions
+    $error_message = "Application Error: " . $e->getMessage();
+    // Ensure $conn is null if connection failed, to prevent mysqli_close on non-object
+    $conn = null;
+} finally {
+    // Close database connection if it was successfully opened
+    if ($conn && is_object($conn)) { // Ensure $conn is an object before trying to close
+        mysqli_close($conn);
     }
 }
 ?>
@@ -437,7 +508,7 @@ function getTypeIcon($type) {
         border-left-color: #ffc107;
     }
 
-    .stat-card.pending {
+    .stat-card.pending { /* This rule is now orphaned as the 'pending' card is removed */
         border-left-color: #fd7e14;
     }
 
@@ -705,7 +776,7 @@ function getTypeIcon($type) {
         color: #721c24;
     }
 
-    .badge.pending {
+    .badge.pending { /* This CSS rule is now orphaned */
         background-color: #fff3cd;
         color: #856404;
     }
@@ -780,7 +851,7 @@ function getTypeIcon($type) {
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
     }
 
-    /* Profile Avatar Styles */
+    /* Profile Avatar Styles (for navbar and dropdown) */
     .user-avatar {
         width: 32px;
         height: 32px;
@@ -803,7 +874,6 @@ function getTypeIcon($type) {
         object-fit: cover;
     }
 
-    /* Dropdown menu avatar styling */
     .dropdown-menu .user-avatar {
         width: 40px;
         height: 40px;
@@ -856,34 +926,6 @@ function getTypeIcon($type) {
             min-width: 800px;
         }
     }
-
-    body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    .page-title {
-        color: white;
-        font-size: 2.0rem;
-        font-weight: bold;
-    }
     </style>
 
     <!-- Helpers -->
@@ -900,7 +942,7 @@ function getTypeIcon($type) {
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="160" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -926,7 +968,7 @@ function getTypeIcon($type) {
                     </li>
                     <li class="menu-item">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
+                            <i class="menu-icon tf-icons bx bx-card"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -944,7 +986,7 @@ function getTypeIcon($type) {
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-receipt"></i>
+                            <i class="menu-icon tf-icons bx bx-cart"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -990,32 +1032,30 @@ function getTypeIcon($type) {
                         <!-- /Search -->
 
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
-                            <!-- User -->
+                            <!-- User Dropdown -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
                                     <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                        <?php
-                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
-                                        if ($navbar_pic): ?>
-                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                        <?php if ($current_user_avatar_url): ?>
+                                            <img src="<?php echo htmlspecialchars($current_user_avatar_url); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item" href="#">
+                                        <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <div class="d-flex">
-                                                <div
-                                                    class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
-                                                    <?php if ($navbar_pic): ?>
-                                                    <img src="<?php echo htmlspecialchars($navbar_pic); ?>"
-                                                        alt="Profile Picture">
-                                                    <?php else: ?>
-                                                    <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
-                                                    <?php endif; ?>
+                                                <div class="flex-shrink-0 me-3">
+                                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                        <?php if ($current_user_avatar_url): ?>
+                                                            <img src="<?php echo htmlspecialchars($current_user_avatar_url); ?>" alt="Profile Picture">
+                                                        <?php else: ?>
+                                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                        <?php endif; ?>
+                                                    </div>
                                                 </div>
                                                 <div class="flex-grow-1">
                                                     <span class="fw-semibold d-block">
@@ -1035,6 +1075,12 @@ function getTypeIcon($type) {
                                         <a class="dropdown-item" href="<?php echo $profile_link; ?>">
                                             <i class="bx bx-user me-2"></i>
                                             <span class="align-middle">My Profile</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#">
+                                            <i class="bx bx-cog me-2"></i>
+                                            <span class="align-middle">Settings</span>
                                         </a>
                                     </li>
                                     <li>
@@ -1060,7 +1106,7 @@ function getTypeIcon($type) {
                     <div class="container-xxl flex-grow-1 container-p-y">
                         <!-- Page Header -->
                         <div class="content-header">
-                            <h4 class="page-title"><i class="bx bxs-user-detail"></i> Customer & Supplier Management</h4>
+                            <h4 class="page-title">Customer & Supplier Management</h4>
                             <div class="header-actions">
                                 <button class="export-btn" onclick="showExportModal()">
                                     <i class="bx bx-download"></i>Export
@@ -1073,16 +1119,18 @@ function getTypeIcon($type) {
 
                         <!-- Success/Error Messages -->
                         <?php if (!empty($success_message)): ?>
-                        <div class="alert alert-success">
-                            <i class="bx bx-check-circle"></i>
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="bx bx-check-circle me-2"></i>
                             <?php echo $success_message; ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                         <?php endif; ?>
 
                         <?php if (!empty($error_message)): ?>
-                        <div class="alert alert-danger">
-                            <i class="bx bx-error-circle"></i>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bx bx-error-circle me-2"></i>
                             <?php echo $error_message; ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                         <?php endif; ?>
 
@@ -1099,10 +1147,6 @@ function getTypeIcon($type) {
                             <div class="stat-card supplier">
                                 <div class="stat-value"><?php echo $counts['suppliers']; ?></div>
                                 <div class="stat-label">Suppliers</div>
-                            </div>
-                            <div class="stat-card pending">
-                                <div class="stat-value"><?php echo $counts['pending_count']; ?></div>
-                                <div class="stat-label">Pending Approval</div>
                             </div>
                         </div>
 
@@ -1143,8 +1187,6 @@ function getTypeIcon($type) {
                                         Active</option>
                                     <option value="inactive"
                                         <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
-                                    <option value="pending"
-                                        <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
                                 </select>
 
                                 <select class="filter-input" name="country">
@@ -1196,15 +1238,14 @@ function getTypeIcon($type) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if (mysqli_num_rows($result) > 0): ?>
+                                    <?php if (isset($result) && mysqli_num_rows($result) > 0): ?>
                                     <?php while ($row = mysqli_fetch_assoc($result)): ?>
                                     <tr>
                                         <td>
                                             <input type="checkbox" class="checkbox-input row-checkbox"
                                                 value="<?php echo htmlspecialchars($row['registrationID']); ?>">
                                         </td>
-                                        <td><strong><?php echo htmlspecialchars($row['registrationID']); ?></strong>
-                                        </td>
+                                        <td><strong><?php echo htmlspecialchars($row['registrationID']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($row['firstName'] . ' ' . $row['lastName']); ?>
                                         </td>
                                         <td><?php echo htmlspecialchars($row['companyName']); ?></td>
@@ -1249,8 +1290,7 @@ function getTypeIcon($type) {
                                             <i class="bx bx-search-alt-2"></i>
                                             <h5>No records found</h5>
                                             <p>Try adjusting your search or filter criteria</p>
-                                            <a href="register-customer-supplier.php" class="add-btn"
-                                                style="margin-top: 1rem;">
+                                            <a href="register-customer-supplier.php" class="add-btn" style="margin-top: 1rem;">
                                                 <i class="bx bx-plus"></i>Add First Record
                                             </a>
                                         </td>
@@ -1264,7 +1304,7 @@ function getTypeIcon($type) {
                         <div class="pagination-section">
                             <div class="pagination-info">
                                 <span class="text-muted">
-                                    Showing <?php echo mysqli_num_rows($result); ?>
+                                    Showing <?php echo isset($result) ? mysqli_num_rows($result) : 0; ?>
                                     of <?php echo $counts['total']; ?> entries
                                     <?php if (!empty($search_term) || !empty($type_filter) || !empty($status_filter) || !empty($country_filter)): ?>
                                     (filtered)
@@ -1280,12 +1320,9 @@ function getTypeIcon($type) {
 
                     <!-- Footer -->
                     <footer class="content-footer footer bg-footer-theme">
-                        <div
-                            class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
+                        <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                             <div class="mb-2 mb-md-0">
-                                © <script>
-                                document.write(new Date().getFullYear());
-                                </script> Inventomo. All rights reserved.
+                                © <script>document.write(new Date().getFullYear());</script> Inventomo. All rights reserved.
                             </div>
                             <div>
                                 <a href="#" class="footer-link me-4">Documentation</a>
@@ -1306,6 +1343,17 @@ function getTypeIcon($type) {
         <div class="layout-overlay layout-menu-toggle"></div>
     </div>
     <!-- / Layout wrapper -->
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span>Loading...</span>
+        </div>
+    </div>
+
 
     <!-- Delete confirmation form (hidden) -->
     <form id="deleteForm" method="POST" style="display: none;">
@@ -1329,12 +1377,76 @@ function getTypeIcon($type) {
         <input type="hidden" name="country" value="<?php echo htmlspecialchars($country_filter); ?>">
     </form>
 
+    <!-- Details/View Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailsModalLabel">
+                        <i class="bx bx-info-circle me-2"></i>Customer/Supplier Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <h6><i class="bx bx-user me-1 text-primary"></i>Personal Info</h6>
+                            <hr class="mt-0">
+                            <div class="mb-2"><strong>ID:</strong> <span id="modalDetailID"></span></div>
+                            <div class="mb-2"><strong>Name:</strong> <span id="modalDetailName"></span></div>
+                            <div class="mb-2"><strong>Email:</strong> <span id="modalDetailEmail"></span></div>
+                            <div class="mb-2"><strong>Phone:</strong> <span id="modalDetailPhone"></span></div>
+                            <div class="mb-2"><strong>Registration Type:</strong> <span id="modalDetailType"></span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="bx bx-briefcase me-1 text-success"></i>Business Info</h6>
+                            <hr class="mt-0">
+                            <div class="mb-2"><strong>Company:</strong> <span id="modalDetailCompany"></span></div>
+                            <div class="mb-2"><strong>Business Type:</strong> <span id="modalDetailBusinessType"></span></div>
+                            <div class="mb-2"><strong>Industry:</strong> <span id="modalDetailIndustry"></span></div>
+                            <div class="mb-2"><strong>Status:</strong> <span id="modalDetailStatus"></span></div>
+                            <div class="mb-2"><strong>Date Registered:</strong> <span id="modalDetailDateRegistered"></span></div>
+                        </div>
+                        <div class="col-12">
+                            <h6><i class="bx bx-home me-1 text-info"></i>Address Info</h6>
+                            <hr class="mt-0">
+                            <div class="mb-2"><strong>Address:</strong> <span id="modalDetailAddress"></span></div>
+                            <div class="mb-2"><strong>City:</strong> <span id="modalDetailCity"></span></div>
+                            <div class="mb-2"><strong>Postcode:</strong> <span id="modalDetailPostcode"></span></div>
+                            <div class="mb-2"><strong>State:</strong> <span id="modalDetailState"></span></div>
+                            <div class="mb-2"><strong>Country:</strong> <span id="modalDetailCountry"></span></div>
+                        </div>
+                        <div class="col-12">
+                            <h6><i class="bx bx-note me-1 text-secondary"></i>Notes</h6>
+                            <hr class="mt-0">
+                            <div id="modalDetailNotes" class="text-muted"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <a href="#" id="modalEditButton" class="btn btn-primary"><i class="bx bx-edit me-1"></i>Edit Record</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
     <!-- JavaScript -->
+    <script src="assets/vendor/libs/jquery/jquery.js"></script>
+    <script src="assets/vendor/libs/popper/popper.js"></script>
+    <script src="assets/vendor/js/bootstrap.js"></script>
+    <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
+    <!-- Assuming menu.js is now correctly loaded or its functionality is within main.js -->
+    <!-- <script src="assets/vendor/js/menu.js"></script> -->
+    <script src="assets/js/main.js"></script>
+
     <script>
     // Page initialization
     document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
         setupKeyboardShortcuts();
+        autoHideAlerts(); // Auto-hide success/error messages on load
     });
 
     // Setup event listeners
@@ -1356,8 +1468,7 @@ function getTypeIcon($type) {
                 const selectAllCheckbox = document.getElementById('selectAll');
 
                 selectAllCheckbox.checked = allCheckboxes.length === checkedCheckboxes.length;
-                selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length <
-                    allCheckboxes.length;
+                selectAllCheckbox.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < allCheckboxes.length;
 
                 toggleBulkActions();
             }
@@ -1373,16 +1484,19 @@ function getTypeIcon($type) {
                 window.location.href = 'register-customer-supplier.php';
             }
 
-            // Ctrl/Cmd + F to focus search
+            // Ctrl/Cmd + F to focus search (if exists)
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 e.preventDefault();
-                document.querySelector('input[name="search"]').focus();
+                const searchInput = document.querySelector('input[name="search"]');
+                if (searchInput) {
+                    searchInput.focus();
+                }
             }
 
-            // Escape to clear search
+            // Escape to clear search (if exists)
             if (e.key === 'Escape') {
                 const searchBox = document.querySelector('input[name="search"]');
-                if (searchBox.value) {
+                if (searchBox && searchBox.value) {
                     searchBox.value = '';
                     document.getElementById('filterForm').submit();
                 }
@@ -1392,12 +1506,18 @@ function getTypeIcon($type) {
 
     // Show loading overlay
     function showLoading() {
-        document.getElementById('loadingOverlay').style.display = 'flex';
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'flex';
+        }
     }
 
     // Hide loading overlay
     function hideLoading() {
-        document.getElementById('loadingOverlay').style.display = 'none';
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
     }
 
     // Filter by type function
@@ -1409,7 +1529,7 @@ function getTypeIcon($type) {
         window.location.href = url.toString();
     }
 
-    // Toggle bulk action buttons
+    // Toggle bulk action buttons display
     function toggleBulkActions() {
         const checkedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
         const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
@@ -1422,24 +1542,86 @@ function getTypeIcon($type) {
         }
     }
 
-    // View record function
-    function viewRecord(registrationID) {
-        // In a real application, this would open a modal or navigate to a details page
-        alert(
-            `View Details for Record: ${registrationID}\n\nThis would typically:\n• Show complete customer/supplier information\n• Display transaction history\n• Show contact details and documents\n• Provide quick actions`);
+    // View record function - now opens a modal with full details
+    async function viewRecord(registrationID) {
+        showLoading(); // Show loading spinner
+        const detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+
+        try {
+            // Fetch all details for the given registrationID via AJAX
+            const response = await fetch(`customer-supplier.php?action=fetch_details&id=${encodeURIComponent(registrationID)}`);
+            const data = await response.json();
+
+            if (response.ok && !data.error) {
+                // Populate modal fields
+                document.getElementById('modalDetailID').textContent = data.registrationID || 'N/A';
+                document.getElementById('modalDetailName').textContent = (data.firstName || '') + ' ' + (data.lastName || '');
+                document.getElementById('modalDetailEmail').textContent = data.email || 'N/A';
+                document.getElementById('modalDetailPhone').textContent = data.phone || 'N/A';
+
+                // For badges, recreate elements or use innerHTML
+                const typeSpan = document.createElement('span');
+                typeSpan.className = `badge ${data.registrationType}`;
+                typeSpan.innerHTML = `<i class="bx ${getTypeIcon(data.registrationType)}"></i> ${data.registrationType ? ucfirst(data.registrationType) : 'N/A'}`;
+                document.getElementById('modalDetailType').innerHTML = ''; // Clear previous content
+                document.getElementById('modalDetailType').appendChild(typeSpan);
+
+                document.getElementById('modalDetailCompany').textContent = data.companyName || 'N/A';
+                document.getElementById('modalDetailBusinessType').textContent = data.businessType || 'N/A';
+                document.getElementById('modalDetailIndustry').textContent = data.industry || 'N/A';
+
+                const statusSpan = document.createElement('span');
+                statusSpan.className = `badge ${data.status}`;
+                statusSpan.innerHTML = `<i class="bx ${getStatusIcon(data.status)}"></i> ${data.status ? ucfirst(data.status) : 'N/A'}`;
+                document.getElementById('modalDetailStatus').innerHTML = ''; // Clear previous content
+                document.getElementById('modalDetailStatus').appendChild(statusSpan);
+
+                document.getElementById('modalDetailDateRegistered').textContent = data.dateRegistered ? formatDate(data.dateRegistered) : 'N/A';
+                document.getElementById('modalDetailAddress').textContent = data.address || 'N/A';
+                document.getElementById('modalDetailCity').textContent = data.city || 'N/A';
+                document.getElementById('modalDetailPostcode').textContent = data.postcode || 'N/A';
+                document.getElementById('modalDetailState').textContent = data.state || 'N/A';
+                document.getElementById('modalDetailCountry').textContent = data.country ? getCountryNameJs(data.country) : 'N/A'; // Use JS helper
+                document.getElementById('modalDetailNotes').textContent = data.notes || 'No notes.';
+
+                // Set the href for the "Edit Record" button in the modal
+                document.getElementById('modalEditButton').href = `register-customer-supplier.php?edit=${encodeURIComponent(registrationID)}`;
+
+                detailsModal.show(); // Show the populated modal
+            } else {
+                alert('Error fetching details: ' + (data.error || 'Unknown error.'));
+            }
+        } catch (error) {
+            console.error('Error in viewRecord:', error);
+            alert('An unexpected error occurred while fetching details. Check console for more info.');
+        } finally {
+            hideLoading(); // Hide loading spinner regardless of success or failure
+        }
     }
 
-    // Edit record function
+    // Helper function for capitalizing first letter
+    function ucfirst(str) {
+        if (!str) return str;
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    // Helper function for country name mapping (needs to be available in JS scope)
+    const countryNamesJs = <?php echo json_encode($country_names); ?>;
+    function getCountryNameJs(code) {
+        return countryNamesJs[code] || code;
+    }
+
+
+    // Edit record function - redirects to the registration/edit page
     function editRecord(registrationID) {
-        showLoading();
+        showLoading(); // Show loading spinner before redirect
         window.location.href = 'register-customer-supplier.php?edit=' + encodeURIComponent(registrationID);
     }
 
     // Delete single record function
     function deleteRecord(registrationID) {
-        if (confirm(
-                'Are you sure you want to delete this record?\n\nThis action cannot be undone and will remove:\n• All customer/supplier information\n• Associated transaction history\n• Contact details and documents'
-                )) {
+        // IMPORTANT: In a production environment, replace this with a custom modal confirmation
+        if (confirm('Are you sure you want to delete this record?\n\nThis action cannot be undone and will remove:\n• All customer/supplier information\n• Associated transaction history\n• Contact details and documents')) {
             showLoading();
             document.getElementById('deleteRegistrationID').value = registrationID;
             document.getElementById('deleteForm').submit();
@@ -1452,13 +1634,15 @@ function getTypeIcon($type) {
         const selectedIds = Array.from(checkedCheckboxes).map(cb => cb.value);
 
         if (selectedIds.length === 0) {
+            // IMPORTANT: In a production environment, replace this with a custom modal alert
             alert('Please select at least one record to delete.');
             return;
         }
 
+        // IMPORTANT: In a production environment, replace this with a custom modal confirmation
         if (confirm(
                 `Are you sure you want to delete ${selectedIds.length} selected record(s)?\n\nThis action cannot be undone and will permanently remove:\n• All selected customer/supplier information\n• Associated transaction histories\n• Contact details and documents`
-            )) {
+                )) {
             showLoading();
 
             // Clear existing hidden inputs
@@ -1479,16 +1663,17 @@ function getTypeIcon($type) {
         }
     }
 
-    // Refresh data function
+    // Refresh data function (simply reloads the page)
     function refreshData() {
         showLoading();
         setTimeout(() => {
             window.location.reload();
-        }, 500);
+        }, 500); // Small delay for loading animation
     }
 
-    // Show export modal
+    // Show export modal (simplified prompt as actual export logic is backend)
     function showExportModal() {
+        // IMPORTANT: In a production environment, replace this with a custom modal for format selection
         const format = prompt(
             'Select export format:\n\n' +
             '1. Excel (.xlsx) - Full data with formatting\n' +
@@ -1498,18 +1683,11 @@ function getTypeIcon($type) {
         );
 
         let exportFormat = '';
-        switch (format) {
-            case '1':
-                exportFormat = 'excel';
-                break;
-            case '2':
-                exportFormat = 'csv';
-                break;
-            case '3':
-                exportFormat = 'pdf';
-                break;
-            default:
-                return; // Cancel export
+        switch(format) {
+            case '1': exportFormat = 'excel'; break;
+            case '2': exportFormat = 'csv'; break;
+            case '3': exportFormat = 'pdf'; break;
+            default: return; // Cancel export if invalid input
         }
 
         if (exportFormat) {
@@ -1520,7 +1698,7 @@ function getTypeIcon($type) {
             // Hide loading after a delay (simulate export processing)
             setTimeout(() => {
                 hideLoading();
-            }, 2000);
+            }, 2000); // Give user a sense of processing
         }
     }
 
@@ -1532,7 +1710,7 @@ function getTypeIcon($type) {
         });
     });
 
-    // Real-time search functionality
+    // Real-time search functionality with delay
     let searchTimeout;
     document.querySelector('input[name="search"]').addEventListener('input', function() {
         clearTimeout(searchTimeout);
@@ -1542,20 +1720,29 @@ function getTypeIcon($type) {
         }, 750); // 750ms delay for better UX
     });
 
-    // Enhanced search in navbar
-    document.querySelector('input[aria-label="Search..."]').addEventListener('keyup', function(e) {
+    // Enhanced search in navbar (links to main search filter)
+    document.querySelector('.navbar-nav input[aria-label="Search..."]').addEventListener('keyup', function(e) {
         if (e.key === 'Enter') {
             const searchTerm = this.value;
             if (searchTerm.trim()) {
-                // Set the search filter and submit
-                document.querySelector('input[name="search"]').value = searchTerm;
-                showLoading();
-                document.getElementById('filterForm').submit();
+                // Set the main filter search input and submit the form
+                const mainSearchInput = document.querySelector('.filters-section input[name="search"]');
+                if (mainSearchInput) {
+                    mainSearchInput.value = searchTerm;
+                    document.getElementById('filterForm').submit();
+                } else {
+                    // Fallback if main search input not found (unlikely in this template)
+                    window.location.href = `?filter=1&search=${encodeURIComponent(searchTerm)}`;
+                }
+            } else {
+                // If search box is cleared, reset filters
+                   window.location.href = '?';
             }
+            showLoading(); // Show loading overlay during navigation
         }
     });
 
-    // Tab click handlers
+    // Tab click handlers for filter tabs
     document.querySelectorAll('.filter-tab').forEach(tab => {
         tab.addEventListener('click', function() {
             // Remove active class from all tabs
@@ -1565,58 +1752,25 @@ function getTypeIcon($type) {
         });
     });
 
-    // Auto-hide success/error messages
+    // Auto-hide success/error messages (Bootstrap 5 way with fade)
     function autoHideAlerts() {
-        const successAlert = document.querySelector('.alert-success');
-        const errorAlert = document.querySelector('.alert-danger');
-
-        if (successAlert) {
+        const alerts = document.querySelectorAll('.alert.alert-dismissible');
+        alerts.forEach(alertEl => {
+            const bsAlert = bootstrap.Alert.getInstance(alertEl) || new bootstrap.Alert(alertEl);
             setTimeout(() => {
-                successAlert.style.transition = 'opacity 0.5s ease';
-                successAlert.style.opacity = '0';
-                setTimeout(() => {
-                    successAlert.remove();
-                }, 500);
-            }, 5000);
-        }
-
-        if (errorAlert) {
-            setTimeout(() => {
-                errorAlert.style.transition = 'opacity 0.5s ease';
-                errorAlert.style.opacity = '0';
-                setTimeout(() => {
-                    errorAlert.remove();
-                }, 500);
-            }, 8000);
-        }
+                bsAlert.hide(); // Use Bootstrap's hide method which handles fade out
+            }, 5000); // 5 seconds before hiding
+        });
     }
 
-    // Initialize alerts auto-hide
-    autoHideAlerts();
-
-    // Handle page visibility changes to refresh data when page becomes visible
+    // Handle page visibility changes (optional, for real-time like behavior)
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden) {
-            // Page became visible, optionally refresh data
-            console.log('Page is now visible - data may be refreshed');
+            // Page became visible, could trigger a refreshData() if real-time updates are critical
+            // console.log('Page is now visible - consider refreshing data.');
         }
     });
     </script>
-
-    <!-- Core JS -->
-    <script src="assets/vendor/libs/jquery/jquery.js"></script>
-    <script src="assets/vendor/libs/popper/popper.js"></script>
-    <script src="assets/vendor/js/bootstrap.js"></script>
-    <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-    <script src="assets/vendor/js/menu.js"></script>
-    <script src="assets/js/main.js"></script>
 </body>
 
 </html>
-
-<?php
-// Close database connection
-if ($conn) {
-    mysqli_close($conn);
-}
-?>

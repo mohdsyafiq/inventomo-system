@@ -24,45 +24,43 @@ if ($conn->connect_error) {
 
 // Check if ID is provided in the URL
 if (isset($_GET['id'])) {
-    $invoice_id = mysqli_real_escape_string($conn, $_GET['id']);
+    $po_id = mysqli_real_escape_string($conn, $_GET['id']);
 
     // Start a transaction (optional, but good practice for related deletions)
     $conn->begin_transaction();
 
     try {
-        // If supplier invoices have related items (e.g., in a 'supplier_bill_items' table), delete them first.
-        // Uncomment and adjust the following block if you have such a table.
-        /*
-        $sql_delete_items = "DELETE FROM supplier_bill_items WHERE bill_id = ?";
+        // Delete related items first (e.g., from invoice_items table)
+        // Adjust 'invoice_items' and 'invoice_id' if your related table/column names are different
+        $sql_delete_items = "DELETE FROM purchase_orders WHERE id = ?";
         if ($stmt_items = $conn->prepare($sql_delete_items)) {
-            $stmt_items->bind_param("i", $invoice_id);
+            $stmt_items->bind_param("i", $po_id);
             $stmt_items->execute();
             $stmt_items->close();
         } else {
             throw new Exception("Error preparing item deletion statement: " . $conn->error);
         }
-        */
 
-        // Now, delete the supplier invoice itself
-        $sql_delete_invoice = "DELETE FROM supplier_bills WHERE id = ?";
-        if ($stmt_invoice = $conn->prepare($sql_delete_invoice)) {
-            $stmt_invoice->bind_param("i", $invoice_id);
-            if ($stmt_invoice->execute()) {
-                $_SESSION['success_message'] = "Supplier Invoice deleted successfully!";
+        // Now, delete the purchase order itself
+        $sql_delete_po = "DELETE FROM invoices WHERE id = ?";
+        if ($stmt_po = $conn->prepare($sql_delete_po)) {
+            $stmt_po->bind_param("i", $po_id);
+            if ($stmt_po->execute()) {
+                $_SESSION['success_message'] = "Purchase Order deleted successfully!";
                 $conn->commit(); // Commit transaction if successful
             } else {
-                throw new Exception("Error deleting Supplier Invoice: " . $stmt_invoice->error);
+                throw new Exception("Error deleting Purchase Order: " . $stmt_po->error);
             }
-            $stmt_invoice->close();
+            $stmt_po->close();
         } else {
-            throw new Exception("Error preparing Invoice deletion statement: " . $conn->error);
+            throw new Exception("Error preparing PO deletion statement: " . $conn->error);
         }
     } catch (Exception $e) {
         $conn->rollback(); // Rollback transaction on error
-        $_SESSION['error_message'] = "Failed to delete Supplier Invoice: " . $e->getMessage();
+        $_SESSION['error_message'] = "Failed to delete Purchase Order: " . $e->getMessage();
     }
 } else {
-    $_SESSION['error_message'] = "Missing Supplier Invoice ID.";
+    $_SESSION['error_message'] = "Missing Purchase Order ID.";
 }
 
 // Close connection
