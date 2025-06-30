@@ -29,61 +29,69 @@ $profile_link = "#";
 $current_user_name = "User";
 $current_user_role = "User";
 $current_user_avatar = "default.jpg";
-$avatar_path = "uploads/photos/"; // Path where profile pictures are stored
 
-// Function to get user avatar URL
-function getUserAvatarUrl($avatar_filename, $avatar_path) {
-    if (empty($avatar_filename) || $avatar_filename == 'default.jpg') {
-        return null; // Will use initials instead
+// Helper function to get avatar background color based on position
+function getAvatarColor($position) {
+    switch (strtolower($position)) {
+        case 'admin':
+            return 'primary';
+        case 'super-admin':
+            return 'danger';
+        case 'moderator':
+            return 'warning';
+        case 'manager':
+            return 'success';
+        case 'staff':
+            return 'info';
+        default:
+            return 'secondary';
     }
+}
 
-    if (file_exists($avatar_path . $avatar_filename)) {
-        return $avatar_path . $avatar_filename;
+// Helper function to get profile picture path
+function getProfilePicture($profile_picture, $full_name) {
+    if (!empty($profile_picture) && $profile_picture != 'default.jpg') {
+        $photo_path = 'uploads/photos/' . $profile_picture;
+        if (file_exists($photo_path)) {
+            return $photo_path;
+        }
     }
+    // Return null to show initials instead
+    return null;
+}
 
-    return null; // Will use initials instead
+// Helper function to get product image path
+function getProductImage($image_name) {
+    if (!empty($image_name) && $image_name != 'default.jpg') {
+        $image_path = 'uploads/images/' . $image_name;
+        if (file_exists($image_path)) {
+            return $image_path;
+        }
+    }
+    // Return default product image or placeholder
+    return 'assets/img/defaults/product-placeholder.png';
 }
 
 // Session check and user profile link logic
 if (isset($_SESSION['user_id']) && $conn) {
     $user_id = mysqli_real_escape_string($conn, $_SESSION['user_id']);
 
-    // Use prepared statement for better security
-    $user_query = "SELECT * FROM user_profiles WHERE Id = ? LIMIT 1";
-    $stmt = mysqli_prepare($conn, $user_query);
+    // Fetch current user details from database
+    $user_query = "SELECT * FROM user_profiles WHERE Id = '$user_id' LIMIT 1";
+    $user_result = mysqli_query($conn, $user_query);
 
-    if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 's', $user_id);
-        mysqli_stmt_execute($stmt);
-        $user_result = mysqli_stmt_get_result($stmt);
+    if ($user_result && mysqli_num_rows($user_result) > 0) {
+        $user_data = mysqli_fetch_assoc($user_result);
 
-        if ($user_result && mysqli_num_rows($user_result) > 0) {
-            $user_data = mysqli_fetch_assoc($user_result);
+        // Set user information
+        $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
+        $current_user_role = $user_data['position'];
+        $current_user_avatar = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : '1.png';
 
-            // Set user information
-            $current_user_name = !empty($user_data['full_name']) ? $user_data['full_name'] : $user_data['username'];
-            $current_user_role = ucfirst($user_data['position']); // Capitalize first letter
-
-            // Handle profile picture path correctly
-            if (!empty($user_data['profile_picture']) && $user_data['profile_picture'] != 'default.jpg') {
-                // Check if the file exists in uploads/photos/
-                if (file_exists($avatar_path . $user_data['profile_picture'])) {
-                    $current_user_avatar = $user_data['profile_picture'];
-                } else {
-                    $current_user_avatar = 'default.jpg';
-                }
-            } else {
-                $current_user_avatar = 'default.jpg';
-            }
-
-            // Profile link goes to user-profile.php with their ID
-            $profile_link = "user-profile.php?op=view&Id=" . urlencode($user_data['Id']);
-        }
-        mysqli_stmt_close($stmt);
+        // Profile link goes to user-profile.php with their ID
+        $profile_link = "user-profile.php?op=view&Id=" . $user_data['Id'];
     }
 }
-
-$user_avatar_url = getUserAvatarUrl($current_user_avatar, $avatar_path);
 
 // Initialize filter variables
 $search_term = '';
@@ -91,6 +99,12 @@ $category_filter = '';
 $stock_status = '';
 $success_message = '';
 $error_message = '';
+
+// Pagination variables
+$items_per_page = 7;
+$current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$current_page = max(1, $current_page); // Ensure page is at least 1
+$offset = ($current_page - 1) * $items_per_page;
 
 // Process delete action - added in-page delete functionality
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'delete') {
@@ -117,7 +131,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             if (mysqli_stmt_execute($stmt)) {
                 // If deletion was successful and there's an image, delete the image file too
                 if (!empty($image_to_delete)) {
-                    $file_to_delete = "uploads/" . $image_to_delete;
+                    $file_to_delete = "uploads/images/" . $image_to_delete;
                     if (file_exists($file_to_delete)) {
                         unlink($file_to_delete);
                     }
@@ -134,38 +148,69 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 }
 
 // Process filter form submission
-if (isset($_GET['filter'])) {
+if (isset($_GET['filter']) || isset($_GET['search']) || isset($_GET['category']) || isset($_GET['stock_status'])) {
     $search_term = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
     $category_filter = isset($_GET['category']) ? mysqli_real_escape_string($conn, $_GET['category']) : '';
     $stock_status = isset($_GET['stock_status']) ? $_GET['stock_status'] : '';
+    
+    // Reset to page 1 when applying new filters (unless explicitly maintaining page)
+    if (isset($_GET['filter'])) {
+        $current_page = 1;
+        $offset = 0;
+    }
 }
 
-// Build SQL query with filters
-$sql = "SELECT itemID, product_name, type_product, stock, price FROM inventory_item WHERE 1=1";
+// Build SQL query with filters - UPDATED to include image column
+$sql = "SELECT itemID, product_name, type_product, stock, price, image FROM inventory_item WHERE 1=1";
+$count_sql = "SELECT COUNT(*) as total FROM inventory_item WHERE 1=1";
 
 // Add search filter if provided
 if (!empty($search_term)) {
-    $sql .= " AND (product_name LIKE '%$search_term%' OR itemID LIKE '%$search_term%')";
+    $search_condition = " AND (product_name LIKE '%$search_term%' OR itemID LIKE '%$search_term%')";
+    $sql .= $search_condition;
+    $count_sql .= $search_condition;
 }
 
 // Add category filter if provided
 if (!empty($category_filter)) {
-    $sql .= " AND type_product = '$category_filter'";
+    $category_condition = " AND type_product = '$category_filter'";
+    $sql .= $category_condition;
+    $count_sql .= $category_condition;
 }
 
 // Add stock status filter if provided
 if (!empty($stock_status)) {
+    $stock_condition = "";
     if ($stock_status == 'in_stock') {
-        $sql .= " AND stock > 10";
+        $stock_condition = " AND stock > 10";
     } elseif ($stock_status == 'low_stock') {
-        $sql .= " AND stock <= 10 AND stock > 0";
+        $stock_condition = " AND stock <= 10 AND stock > 0";
     } elseif ($stock_status == 'out_of_stock') {
-        $sql .= " AND stock <= 0";
+        $stock_condition = " AND stock <= 0";
     }
+    $sql .= $stock_condition;
+    $count_sql .= $stock_condition;
 }
 
-// Add order by clause
-$sql .= " ORDER BY itemID";
+// Get total count for pagination
+$count_result = mysqli_query($conn, $count_sql);
+$total_items = 0;
+if ($count_result) {
+    $count_row = mysqli_fetch_assoc($count_result);
+    $total_items = (int)$count_row['total'];
+    mysqli_free_result($count_result);
+}
+
+// Calculate pagination values
+$total_pages = ceil($total_items / $items_per_page);
+$current_page = min($current_page, max(1, $total_pages)); // Ensure current page is within valid range
+$offset = ($current_page - 1) * $items_per_page; // Recalculate offset after page validation
+
+// Add order by clause and limit for pagination
+$sql .= " ORDER BY itemID LIMIT $offset, $items_per_page";
+
+// Debug information (remove in production)
+// echo "<!-- Debug: Current Page: $current_page, Offset: $offset, Total Items: $total_items, Total Pages: $total_pages -->";
 
 // Execute query
 $result = mysqli_query($conn, $sql);
@@ -225,6 +270,29 @@ if ($category_result) {
 
     <!-- Page CSS -->
     <style>
+    /* Background styling matching index.php */
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+                    url('assets/img/backgrounds/inside-background.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        min-height: 100vh;
+    }
+
+    /* Ensure layout wrapper takes full space */
+    .layout-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
+    /* Content wrapper with transparent background to show body background */
+    .content-wrapper {
+        background: transparent;
+        min-height: 100vh;
+    }
+
     .content-header {
         display: flex;
         justify-content: space-between;
@@ -233,38 +301,52 @@ if ($category_result) {
     }
 
     .page-title {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #566a7f;
+        font-size: 2.0rem;
+        font-weight: bold;
+        color: white;
         margin: 0;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
     }
 
     .add-product-btn {
-        padding: 0.5rem 1rem;
-        background-color: #696cff;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, #696cff, #5f63f2);
         border: none;
-        border-radius: 0.375rem;
+        border-radius: 0.5rem;
         cursor: pointer;
         font-size: 0.875rem;
         color: white;
-        font-weight: 500;
+        font-weight: 600;
         text-decoration: none;
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
+        box-shadow: 0 4px 15px rgba(105, 108, 255, 0.3);
+        transition: all 0.3s ease;
     }
 
     .add-product-btn:hover {
-        background-color: #5f63f2;
+        background: linear-gradient(135deg, #5f63f2, #696cff);
         color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(105, 108, 255, 0.4);
     }
 
+    /* Card styling with glassmorphism effect */
     .inventory-card {
-        background: white;
-        border-radius: 0.5rem;
-        box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
-        padding: 1.5rem;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 1rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 2rem;
         margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .inventory-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
     }
 
     .card-header {
@@ -273,40 +355,52 @@ if ($category_result) {
         align-items: center;
         margin-bottom: 1.5rem;
         padding-bottom: 1rem;
-        border-bottom: 1px solid #d9dee3;
+        border-bottom: 2px solid rgba(105, 108, 255, 0.1);
     }
 
     .card-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: #566a7f;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #333;
         margin: 0;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
+    }
+
+    .card-title i {
+        color: #696cff;
+        font-size: 1.75rem;
     }
 
     .filter-section {
         display: flex;
         gap: 1rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 2rem;
         flex-wrap: wrap;
+        padding: 1.5rem;
+        background: rgba(105, 108, 255, 0.05);
+        border-radius: 0.75rem;
+        border: 1px solid rgba(105, 108, 255, 0.1);
     }
 
     .filter-input,
     .filter-select {
-        padding: 0.5rem 0.75rem;
-        border: 1px solid #d9dee3;
-        border-radius: 0.375rem;
+        padding: 0.75rem 1rem;
+        border: 2px solid rgba(105, 108, 255, 0.2);
+        border-radius: 0.5rem;
         font-size: 0.875rem;
         color: #566a7f;
-        background-color: white;
+        background-color: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(5px);
+        transition: all 0.3s ease;
     }
 
     .filter-input:focus,
     .filter-select:focus {
         outline: none;
         border-color: #696cff;
+        background-color: rgba(255, 255, 255, 0.95);
         box-shadow: 0 0 0 0.2rem rgba(105, 108, 255, 0.25);
     }
 
@@ -316,186 +410,281 @@ if ($category_result) {
     }
 
     .filter-btn {
-        padding: 0.5rem 1rem;
+        padding: 0.75rem 1.25rem;
         border: none;
-        border-radius: 0.375rem;
+        border-radius: 0.5rem;
         cursor: pointer;
         font-size: 0.875rem;
-        font-weight: 500;
+        font-weight: 600;
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
+        transition: all 0.3s ease;
     }
 
     .btn-primary {
-        background-color: #696cff;
+        background: linear-gradient(135deg, #696cff, #5f63f2);
         color: white;
+        box-shadow: 0 4px 15px rgba(105, 108, 255, 0.3);
     }
 
     .btn-primary:hover {
-        background-color: #5f63f2;
+        background: linear-gradient(135deg, #5f63f2, #696cff);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(105, 108, 255, 0.4);
     }
 
     .btn-outline {
-        background-color: transparent;
+        background: rgba(255, 255, 255, 0.8);
         color: #566a7f;
-        border: 1px solid #d9dee3;
+        border: 2px solid rgba(105, 108, 255, 0.3);
         text-decoration: none;
+        backdrop-filter: blur(5px);
     }
 
     .btn-outline:hover {
-        background-color: #f5f5f9;
+        background: rgba(105, 108, 255, 0.1);
         border-color: #696cff;
         color: #696cff;
+        transform: translateY(-1px);
+    }
+
+    /* Table styling with enhanced visual appeal */
+    .table-responsive {
+        border-radius: 0.75rem;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
     }
 
     .data-table {
         width: 100%;
         border-collapse: collapse;
+        background: transparent;
     }
 
     .data-table th,
     .data-table td {
-        padding: 0.75rem;
+        padding: 1rem 0.75rem;
         text-align: left;
-        border-bottom: 1px solid #d9dee3;
+        border-bottom: 1px solid rgba(105, 108, 255, 0.1);
+        vertical-align: middle;
     }
 
     .data-table th {
-        background-color: #f5f5f9;
-        font-weight: 600;
-        color: #566a7f;
+        background: linear-gradient(135deg, #696cff, #5f63f2);
+        color: white;
+        font-weight: 700;
         font-size: 0.8125rem;
         text-transform: uppercase;
-        letter-spacing: 0.4px;
+        letter-spacing: 0.5px;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
     }
 
     .data-table td {
         color: #566a7f;
         font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .data-table tbody tr {
+        transition: all 0.3s ease;
     }
 
     .data-table tbody tr:hover {
-        background-color: #f5f5f9;
+        background: rgba(105, 108, 255, 0.05);
+        transform: scale(1.005);
+    }
+
+    /* Product cell styling with image */
+    .product-cell {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        min-height: 60px;
+    }
+
+    .product-image {
+        width: 50px;
+        height: 50px;
+        border-radius: 0.5rem;
+        object-fit: cover;
+        border: 2px solid rgba(105, 108, 255, 0.2);
+        background: rgba(255, 255, 255, 0.8);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .product-image:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 15px rgba(105, 108, 255, 0.3);
+        border-color: #696cff;
+    }
+
+    .product-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .product-name {
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.9rem;
+        line-height: 1.2;
+    }
+
+    .product-id {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        font-weight: 500;
     }
 
     .status-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.25rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.25rem;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 2rem;
         font-size: 0.75rem;
-        font-weight: 500;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
     .status-in-stock {
-        background-color: #d1fae5;
+        background: linear-gradient(135deg, #d1fae5, #a7f3d0);
         color: #065f46;
+        border: 1px solid #a7f3d0;
     }
 
     .status-low-stock {
-        background-color: #fef3c7;
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
         color: #92400e;
+        border: 1px solid #fde68a;
     }
 
     .status-out-stock {
-        background-color: #fee2e2;
+        background: linear-gradient(135deg, #fee2e2, #fecaca);
         color: #991b1b;
+        border: 1px solid #fecaca;
     }
 
     .status-indicator {
-        width: 0.5rem;
-        height: 0.5rem;
+        width: 0.75rem;
+        height: 0.75rem;
         border-radius: 50%;
+        animation: pulse 2s infinite;
     }
 
     .indicator-green {
-        background-color: #10b981;
+        background: radial-gradient(circle, #10b981, #059669);
     }
 
     .indicator-yellow {
-        background-color: #f59e0b;
+        background: radial-gradient(circle, #f59e0b, #d97706);
     }
 
     .indicator-red {
-        background-color: #ef4444;
+        background: radial-gradient(circle, #ef4444, #dc2626);
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
     }
 
     .action-buttons {
         display: flex;
         gap: 0.5rem;
+        flex-wrap: wrap;
     }
 
     .action-btn {
-        padding: 0.375rem 0.75rem;
-        border: 1px solid #d9dee3;
-        background-color: white;
+        padding: 0.5rem 0.75rem;
+        border: 2px solid rgba(105, 108, 255, 0.2);
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(5px);
         cursor: pointer;
-        border-radius: 0.375rem;
+        border-radius: 0.5rem;
         font-size: 0.75rem;
         color: #566a7f;
         text-decoration: none;
         display: inline-flex;
         align-items: center;
         gap: 0.25rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
     }
 
     .action-btn:hover {
-        background-color: #f5f5f9;
+        background: rgba(105, 108, 255, 0.1);
         border-color: #696cff;
         color: #696cff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(105, 108, 255, 0.2);
     }
 
     .action-btn.delete:hover {
         border-color: #ef4444;
         color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
     }
 
     .checkbox-input {
-        width: 1rem;
-        height: 1rem;
+        width: 1.2rem;
+        height: 1.2rem;
         cursor: pointer;
         accent-color: #696cff;
+        border-radius: 0.25rem;
     }
 
     .filter-active-badge {
-        background-color: #e0f2fe;
+        background: linear-gradient(135deg, #e0f2fe, #b3e5fc);
         color: #0277bd;
-        padding: 0.25rem 0.5rem;
-        border-radius: 1rem;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
         font-size: 0.75rem;
-        margin-left: 0.5rem;
+        margin-left: 0.75rem;
+        font-weight: 600;
+        border: 1px solid #81d4fa;
     }
 
     .alert {
-        padding: 0.75rem 1rem;
-        border-radius: 0.375rem;
-        margin-bottom: 1rem;
+        padding: 1rem 1.5rem;
+        border-radius: 0.75rem;
+        margin-bottom: 1.5rem;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        animation: fadeIn 0.5s ease-in-out;
+        gap: 0.75rem;
+        animation: slideInDown 0.5s ease-in-out;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     .alert-success {
-        background-color: #d1fae5;
+        background: linear-gradient(135deg, rgba(209, 250, 229, 0.9), rgba(167, 243, 208, 0.9));
         color: #065f46;
-        border: 1px solid #a7f3d0;
+        border-color: #a7f3d0;
+        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.2);
     }
 
     .alert-error {
-        background-color: #fee2e2;
+        background: linear-gradient(135deg, rgba(254, 226, 226, 0.9), rgba(252, 165, 165, 0.9));
         color: #991b1b;
-        border: 1px solid #fecaca;
+        border-color: #fecaca;
+        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.2);
     }
 
-    @keyframes fadeIn {
+    @keyframes slideInDown {
         from {
             opacity: 0;
-            transform: translateY(-10px);
+            transform: translateY(-30px);
         }
-
         to {
             opacity: 1;
             transform: translateY(0);
@@ -504,59 +693,67 @@ if ($category_result) {
 
     .no-data {
         text-align: center;
-        padding: 3rem 1rem;
+        padding: 4rem 1rem;
         color: #9ca3af;
     }
 
     .no-data i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
+        font-size: 4rem;
+        margin-bottom: 1.5rem;
         color: #d1d5db;
+        opacity: 0.7;
     }
 
     .pagination-wrapper {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: 1.5rem;
-        padding-top: 1rem;
-        border-top: 1px solid #d9dee3;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 2px solid rgba(105, 108, 255, 0.1);
     }
 
     .pagination-info {
         color: #6b7280;
         font-size: 0.875rem;
+        font-weight: 500;
     }
 
     .pagination-controls {
         display: flex;
-        gap: 0.25rem;
+        gap: 0.5rem;
     }
 
     .page-btn {
-        padding: 0.5rem 0.75rem;
-        border: 1px solid #d9dee3;
-        background-color: white;
+        padding: 0.75rem 1rem;
+        border: 2px solid rgba(105, 108, 255, 0.2);
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(5px);
         cursor: pointer;
-        border-radius: 0.375rem;
+        border-radius: 0.5rem;
         color: #566a7f;
         font-size: 0.875rem;
         text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
     }
 
     .page-btn:hover,
     .page-btn.active {
-        background-color: #696cff;
+        background: linear-gradient(135deg, #696cff, #5f63f2);
         border-color: #696cff;
         color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(105, 108, 255, 0.3);
     }
 
     .page-btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+        transform: none;
     }
 
-    /* Modal Styles */
+    /* Modal Styles with glassmorphism */
     .modal-overlay {
         display: none;
         position: fixed;
@@ -564,74 +761,112 @@ if ($category_result) {
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(5px);
         z-index: 1000;
         justify-content: center;
         align-items: center;
     }
 
     .modal-content {
-        background-color: white;
-        border-radius: 0.5rem;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(15px);
+        border-radius: 1rem;
         width: 90%;
         max-width: 500px;
-        padding: 1.5rem;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        padding: 2rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        animation: modalSlideIn 0.3s ease-out;
+    }
+
+    @keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-50px) scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
     }
 
     .modal-header {
         display: flex;
         align-items: center;
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
     }
 
     .modal-title {
-        font-size: 1.125rem;
-        font-weight: 600;
+        font-size: 1.25rem;
+        font-weight: 700;
         color: #374151;
-        margin: 0 0 0 0.5rem;
+        margin: 0 0 0 0.75rem;
     }
 
     .modal-actions {
         display: flex;
         justify-content: flex-end;
-        gap: 0.75rem;
-        margin-top: 1.5rem;
+        gap: 1rem;
+        margin-top: 2rem;
     }
 
-    /* Avatar styles for better profile picture display */
-    .avatar-circle {
-        width: 40px;
-        height: 40px;
+    /* Image Modal Styles */
+    .image-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(5px);
+        z-index: 1001;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+    }
+
+    .image-modal-content {
+        max-width: 90%;
+        max-height: 90%;
+        border-radius: 1rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        animation: zoomIn 0.3s ease-out;
+    }
+
+    @keyframes zoomIn {
+        from {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* User avatar styles matching index.php */
+    .user-avatar {
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #696cff, #5f63f2);
-        display: flex;
+        overflow: hidden;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        color: white;
+        margin-right: 0.5rem;
         font-weight: 600;
-        font-size: 16px;
+        font-size: 12px;
+        color: white;
+        flex-shrink: 0;
         position: relative;
     }
 
-    .avatar-circle::after {
-        content: '';
-        position: absolute;
-        bottom: 2px;
-        right: 2px;
-        width: 12px;
-        height: 12px;
-        background-color: #10b981;
-        border: 2px solid white;
-        border-radius: 50%;
-    }
-
-    .profile-image {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
         object-fit: cover;
-        border: 2px solid #f8f9fa;
     }
 
     @media (max-width: 768px) {
@@ -656,6 +891,22 @@ if ($category_result) {
 
         .action-buttons {
             flex-direction: column;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            text-align: center;
+        }
+
+        .product-cell {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .product-image {
+            width: 40px;
+            height: 40px;
         }
     }
     </style>
@@ -700,7 +951,7 @@ if ($category_result) {
                     </li>
                     <li class="menu-item active">
                         <a href="inventory.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-card"></i>
+                            <i class="menu-icon tf-icons bx bx-package me-2"></i>
                             <div data-i18n="Analytics">Inventory</div>
                         </a>
                     </li>
@@ -718,7 +969,7 @@ if ($category_result) {
                     </li>
                     <li class="menu-item">
                         <a href="order-billing.php" class="menu-link">
-                            <i class="menu-icon tf-icons bx bx-cart"></i>
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
                             <div data-i18n="Analytics">Order & Billing</div>
                         </a>
                     </li>
@@ -753,56 +1004,38 @@ if ($category_result) {
                     </div>
 
                     <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-                        <!-- Search -->
-                        <div class="navbar-nav align-items-center">
-                            <div class="nav-item d-flex align-items-center">
-                                <i class="bx bx-search fs-4 lh-0"></i>
-                                <input type="text" class="form-control border-0 shadow-none" placeholder="Search..."
-                                    aria-label="Search..." />
-                            </div>
-                        </div>
-                        <!-- /Search -->
-
                         <ul class="navbar-nav flex-row align-items-center ms-auto">
                             <!-- User -->
                             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);"
                                     data-bs-toggle="dropdown">
-                                    <div class="avatar avatar-online">
-                                        <?php if ($user_avatar_url): ?>
-                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>"
-                                                 alt="<?php echo htmlspecialchars($current_user_name); ?>"
-                                                 class="profile-image" />
+                                    <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                        <?php
+                                        $navbar_pic = getProfilePicture($current_user_avatar, $current_user_name);
+                                        if ($navbar_pic): ?>
+                                            <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
                                         <?php else: ?>
-                                            <div class="avatar-circle">
-                                                <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
-                                            </div>
+                                            <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
                                         <?php endif; ?>
                                     </div>
                                 </a>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <a class="dropdown-item" href="<?php echo $profile_link; ?>">
+                                        <a class="dropdown-item" href="#">
                                             <div class="d-flex">
-                                                <div class="flex-shrink-0 me-3">
-                                                    <div class="avatar avatar-online">
-                                                        <?php if ($user_avatar_url): ?>
-                                                            <img src="<?php echo htmlspecialchars($user_avatar_url); ?>"
-                                                                 alt="<?php echo htmlspecialchars($current_user_name); ?>"
-                                                                 class="profile-image" />
-                                                        <?php else: ?>
-                                                            <div class="avatar-circle">
-                                                                <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
-                                                            </div>
-                                                        <?php endif; ?>
-                                                    </div>
+                                                <div class="user-avatar bg-label-<?php echo getAvatarColor($current_user_role); ?>">
+                                                    <?php if ($navbar_pic): ?>
+                                                        <img src="<?php echo htmlspecialchars($navbar_pic); ?>" alt="Profile Picture">
+                                                    <?php else: ?>
+                                                        <?php echo strtoupper(substr($current_user_name, 0, 1)); ?>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="flex-grow-1">
                                                     <span class="fw-semibold d-block">
                                                         <?php echo htmlspecialchars($current_user_name); ?>
                                                     </span>
                                                     <small class="text-muted">
-                                                        <?php echo htmlspecialchars($current_user_role); ?>
+                                                        <?php echo htmlspecialchars(ucfirst($current_user_role)); ?>
                                                     </small>
                                                 </div>
                                             </div>
@@ -812,9 +1045,9 @@ if ($category_result) {
                                         <div class="dropdown-divider"></div>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item" href="#">
-                                            <i class="bx bx-cog me-2"></i>
-                                            <span class="align-middle">Settings</span>
+                                        <a class="dropdown-item" href="<?php echo $profile_link; ?>">
+                                            <i class="bx bx-user me-2"></i>
+                                            <span class="align-middle">My Profile</span>
                                         </a>
                                     </li>
                                     <li>
@@ -832,6 +1065,7 @@ if ($category_result) {
                         </ul>
                     </div>
                 </nav>
+
                 <!-- / Navbar -->
 
                 <!-- Content wrapper -->
@@ -925,11 +1159,10 @@ if ($category_result) {
                                                 <input type="checkbox" class="checkbox-input" id="selectAll"
                                                     onchange="toggleAllCheckboxes()">
                                             </th>
-                                            <th>ID</th>
-                                            <th>Product Name</th>
+                                            <th style="width: 250px;">Product</th>
                                             <th>Category</th>
                                             <th>Stock</th>
-                                            <th>Total Price (RM)</th><!-- Changed column header -->
+                                            <th>Total Price (RM)</th>
                                             <th>Status</th>
                                             <th style="width: 150px;">Actions</th>
                                         </tr>
@@ -960,13 +1193,28 @@ if ($category_result) {
                                                 // Calculate the total price for the item
                                                 $total_item_price = $row['price'] * $row['stock'];
 
+                                                // Get product image path
+                                                $product_image = getProductImage($row['image']);
+
                                                 echo "<tr>";
                                                 echo "<td><input type='checkbox' class='checkbox-input row-checkbox' value='" . $row['itemID'] . "'></td>";
-                                                echo "<td>" . $row['itemID'] . "</td>";
-                                                echo "<td>" . htmlspecialchars($row['product_name']) . "</td>";
+                                                
+                                                // Product cell with image
+                                                echo "<td>
+                                                        <div class='product-cell'>
+                                                            <img src='" . htmlspecialchars($product_image) . "' 
+                                                                 alt='" . htmlspecialchars($row['product_name']) . "' 
+                                                                 class='product-image' 
+                                                                 onclick='showImageModal(\"" . htmlspecialchars($product_image) . "\", \"" . htmlspecialchars($row['product_name']) . "\")'>
+                                                            <div class='product-info'>
+                                                                <div class='product-name'>" . htmlspecialchars($row['product_name']) . "</div>
+                                                                <div class='product-id'>ID: " . $row['itemID'] . "</div>
+                                                            </div>
+                                                        </div>
+                                                      </td>";
+                                                
                                                 echo "<td>" . htmlspecialchars($row['type_product']) . "</td>";
                                                 echo "<td>" . $row['stock'] . "</td>";
-                                                // Display the calculated total price for the item
                                                 echo "<td>RM" . number_format($total_item_price, 2) . "</td>";
                                                 echo "<td>
                                                             <span class='status-badge " . $status_class . "'>
@@ -986,7 +1234,7 @@ if ($category_result) {
                                             }
                                         } else {
                                             echo "<tr>
-                                                        <td colspan='8'>
+                                                        <td colspan='7'>
                                                             <div class='no-data'>
                                                                 <i class='bx bx-search'></i>
                                                                 <p>No products found matching your criteria.</p>
@@ -1005,16 +1253,78 @@ if ($category_result) {
                             <!-- Pagination -->
                             <div class="pagination-wrapper">
                                 <div class="pagination-info">
-                                    Showing <?php echo mysqli_num_rows($result); ?> results
+                                    <?php
+                                    $start_item = ($current_page - 1) * $items_per_page + 1;
+                                    $end_item = min($current_page * $items_per_page, $total_items);
+                                    ?>
+                                    Showing <?php echo $start_item; ?>-<?php echo $end_item; ?> of <?php echo $total_items; ?> results
                                 </div>
                                 <div class="pagination-controls">
-                                    <button class="page-btn" disabled>
-                                        <i class="bx bx-chevron-left"></i>
-                                    </button>
-                                    <button class="page-btn active">1</button>
-                                    <button class="page-btn" disabled>
-                                        <i class="bx bx-chevron-right"></i>
-                                    </button>
+                                    <?php
+                                    // Build URL parameters for pagination links
+                                    $url_params = [];
+                                    if (!empty($search_term)) $url_params[] = "search=" . urlencode($search_term);
+                                    if (!empty($category_filter)) $url_params[] = "category=" . urlencode($category_filter);
+                                    if (!empty($stock_status)) $url_params[] = "stock_status=" . urlencode($stock_status);
+                                    
+                                    $base_url = "inventory.php";
+                                    if (!empty($url_params)) {
+                                        $base_url .= "?" . implode("&", $url_params);
+                                        $separator = "&";
+                                    } else {
+                                        $separator = "?";
+                                    }
+                                    
+                                    // Previous button
+                                    if ($current_page > 1): ?>
+                                        <a href="<?php echo $base_url . $separator . 'page=' . ($current_page - 1); ?>" class="page-btn">
+                                            <i class="bx bx-chevron-left"></i> Previous
+                                        </a>
+                                    <?php else: ?>
+                                        <button class="page-btn" disabled>
+                                            <i class="bx bx-chevron-left"></i> Previous
+                                        </button>
+                                    <?php endif;
+                                    
+                                    // Page numbers
+                                    $start_page = max(1, $current_page - 2);
+                                    $end_page = min($total_pages, $current_page + 2);
+                                    
+                                    // Show first page if not in range
+                                    if ($start_page > 1): ?>
+                                        <a href="<?php echo $base_url . $separator . 'page=1'; ?>" class="page-btn">1</a>
+                                        <?php if ($start_page > 2): ?>
+                                            <span class="page-btn" style="border: none; background: none; cursor: default;">...</span>
+                                        <?php endif;
+                                    endif;
+                                    
+                                    // Show page numbers
+                                    for ($i = $start_page; $i <= $end_page; $i++): ?>
+                                        <?php if ($i == $current_page): ?>
+                                            <button class="page-btn active"><?php echo $i; ?></button>
+                                        <?php else: ?>
+                                            <a href="<?php echo $base_url . $separator . 'page=' . $i; ?>" class="page-btn"><?php echo $i; ?></a>
+                                        <?php endif;
+                                    endfor;
+                                    
+                                    // Show last page if not in range
+                                    if ($end_page < $total_pages): ?>
+                                        <?php if ($end_page < $total_pages - 1): ?>
+                                            <span class="page-btn" style="border: none; background: none; cursor: default;">...</span>
+                                        <?php endif; ?>
+                                        <a href="<?php echo $base_url . $separator . 'page=' . $total_pages; ?>" class="page-btn"><?php echo $total_pages; ?></a>
+                                    <?php endif;
+                                    
+                                    // Next button
+                                    if ($current_page < $total_pages): ?>
+                                        <a href="<?php echo $base_url . $separator . 'page=' . ($current_page + 1); ?>" class="page-btn">
+                                            Next <i class="bx bx-chevron-right"></i>
+                                        </a>
+                                    <?php else: ?>
+                                        <button class="page-btn" disabled>
+                                            Next <i class="bx bx-chevron-right"></i>
+                                        </button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -1071,6 +1381,18 @@ if ($category_result) {
         </div>
     </div>
 
+    <!-- Image Modal -->
+    <div class="image-modal-overlay" id="imageModal" onclick="closeImageModal()">
+        <img class="image-modal-content" id="modalImage" src="" alt="">
+    </div>
+
+    <?php
+    // Close database connection at the end
+    if (isset($conn)) {
+        mysqli_close($conn);
+    }
+    ?>
+
     <!-- Core JS -->
     <script src="assets/vendor/libs/jquery/jquery.js"></script>
     <script src="assets/vendor/libs/popper/popper.js"></script>
@@ -1110,11 +1432,31 @@ if ($category_result) {
         modal.style.display = 'none';
     }
 
+    // Image modal functions
+    function showImageModal(imageSrc, productName) {
+        const modal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        
+        modalImage.src = imageSrc;
+        modalImage.alt = productName;
+        modal.style.display = 'flex';
+    }
+
+    function closeImageModal() {
+        const modal = document.getElementById('imageModal');
+        modal.style.display = 'none';
+    }
+
     // Close modal if clicked outside
     window.onclick = function(event) {
-        const modal = document.getElementById('deleteModal');
-        if (event.target === modal) {
+        const deleteModal = document.getElementById('deleteModal');
+        const imageModal = document.getElementById('imageModal');
+        
+        if (event.target === deleteModal) {
             closeDeleteModal();
+        }
+        if (event.target === imageModal) {
+            closeImageModal();
         }
     }
 
@@ -1154,6 +1496,28 @@ if ($category_result) {
                 // document.getElementById('filterForm').submit();
             });
         });
+
+        // Add smooth transitions for cards
+        const cards = document.querySelectorAll('.inventory-card');
+        cards.forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Add hover effects for product images
+        const productImages = document.querySelectorAll('.product-image');
+        productImages.forEach(img => {
+            img.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.1)';
+            });
+            img.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+            });
+        });
     });
 
     // Bulk actions (for future enhancement)
@@ -1178,6 +1542,14 @@ if ($category_result) {
             alert('Please select items to export.');
         }
     }
+
+    // Keyboard navigation for image modal
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeImageModal();
+            closeDeleteModal();
+        }
+    });
     </script>
 </body>
 
