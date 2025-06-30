@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 27, 2025 at 04:50 PM
+-- Generation Time: Jun 30, 2025 at 12:41 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -108,12 +108,19 @@ CREATE TABLE `inventory_item` (
 --
 
 INSERT INTO `inventory_item` (`itemID`, `product_name`, `type_product`, `stock`, `price`, `supplier_id`, `last_updated`, `image`) VALUES
+(17152, 'PLUG 3 PIN EXTESION 5SOCKET HIGH QUALITY', 'Electronic', 0, '100', NULL, '2025-06-30 09:28:43', ''),
+(17587, 'TABLE TOP LAMP LED 12W', 'Furniture', 0, '89', NULL, '2025-06-30 06:39:30', ''),
 (23585, 'PLUG 3 PIN', 'Electronic', 784, '3', NULL, '2025-06-27 02:15:07', ''),
 (26040, 'LED LAMP 18W 6FT', 'Electronic', 25, '8', NULL, '2025-06-27 02:26:19', ''),
+(32724, 'HAIR DRYER 3MODE PHILIPS', 'Electronic', 0, '99', NULL, '2025-06-30 06:38:57', ''),
+(54436, 'RICE COOKER PHILIPS 1.8L LED BUTTON 3IN1', 'Electronic', 0, '199', NULL, '2025-06-30 06:43:03', ''),
 (78110, 'BATTERY 3A 4PCS EVEREADY', 'Electronic', 301, '6', NULL, '2025-06-27 02:26:58', '5b109c12eff384d888138c1aa35dad8d.jpg'),
+(81363, 'RICE COOKER PANASONICS 1.0', 'Electronic', 0, '159', NULL, '2025-06-30 06:43:36', ''),
 (89614, 'WATER HEATER 12L SINGER', 'Kitchen', 151, '59', NULL, '2025-06-27 02:26:42', 'ChatGPT Image May 6, 2025, 09_30_54 PM.png'),
+(90638, 'TABLE FAN 5 BLADES PANASONIC', 'Electronic', 0, '120', NULL, '2025-06-30 06:36:06', ''),
 (93084, 'CAR JUMPER 6GAUGE 5MTR', 'Accessories', 111, '45', NULL, '2025-06-27 02:27:33', ''),
 (93831, 'TEST PEN STANLEY 65MM', 'Electronic', 273, '11', NULL, '2025-06-27 02:26:58', ''),
+(94396, 'SPEAKER TV SET SAMSUNG 360', 'Electronic', 0, '1299', NULL, '2025-06-30 06:41:30', ''),
 (95322, 'WASHING MACHINE 15L SAMSUNG', 'Electronic', 133, '899', NULL, '2025-06-27 02:26:19', '');
 
 -- --------------------------------------------------------
@@ -169,7 +176,7 @@ INSERT INTO `purchase_orders` (`id`, `supplier_id`, `po_number`, `date_ordered`,
 (78, 5, 'PO-2024-026', '2025-06-25', NULL, NULL, 'rejected', 95.40, '2025-06-25 05:04:22'),
 (79, 7, 'PO-20250624-023', '2025-06-25', NULL, NULL, 'approved', 233.20, '2025-06-25 05:05:22'),
 (81, 7, 'PO-20250622-2', '2025-06-25', NULL, NULL, 'rejected', 108.12, '2025-06-25 10:25:08'),
-(83, 7, 'PO-20250700', '2025-06-26', NULL, NULL, 'kiv', 127.20, '2025-06-25 16:35:55'),
+(83, 7, 'PO-20250700', '2025-06-26', NULL, NULL, 'approved', 127.20, '2025-06-25 16:35:55'),
 (84, 5, 'PO-20250701', '2025-06-25', NULL, NULL, 'pending', 29.68, '2025-06-25 16:36:28'),
 (85, 9, 'PO-20250702', '2025-06-26', NULL, NULL, 'pending', 6.36, '2025-06-26 13:40:05'),
 (86, 7, 'PO-2024-022', '2025-06-26', NULL, NULL, 'pending', 47.70, '2025-06-26 13:47:57'),
@@ -246,7 +253,8 @@ INSERT INTO `stock_in_history` (`id`, `product_id`, `product_name`, `quantity_ad
 (5, 26040, 'LED LAMP 18W 6FT', 30, 'RAFIZ', '2025-06-25 04:35:13'),
 (6, 75127, 'IPHONE 17 PRO MAX 516GB', 12, 'RAFIZ', '2025-06-25 13:48:30'),
 (7, 78110, 'BATTERY 3A 4PCS EVEREADY', 28, 'RAFIZ', '2025-06-26 00:03:47'),
-(8, 95322, 'WASHING MACHINE 15L SAMSUNG', 5, 'RAFIZ', '2025-06-26 00:10:43');
+(8, 95322, 'WASHING MACHINE 15L SAMSUNG', 5, 'RAFIZ', '2025-06-26 00:10:43'),
+(9, 17152, 'PLUG 3 PIN EXTESION 5SOCKET HIGH QUALITY', 100, 'RAFIZ', '2025-06-30 09:28:12');
 
 -- --------------------------------------------------------
 
@@ -275,7 +283,8 @@ INSERT INTO `stock_out_history` (`id`, `product_id`, `product_name`, `quantity_d
 (5, 89614, 'WATER HEATER 12L SINGER', 1, 'RAFIZ', '2025-06-25 04:35:23'),
 (6, 75127, 'IPHONE 17 PRO MAX 516GB', 10, 'RAFIZ', '2025-06-25 13:50:47'),
 (7, 26040, 'LED LAMP 18W 6FT', 151, 'RAFIZ', '2025-06-25 16:31:40'),
-(8, 89614, 'WATER HEATER 12L SINGER', 15, 'RAFIZ', '2025-06-25 16:32:00');
+(8, 89614, 'WATER HEATER 12L SINGER', 15, 'RAFIZ', '2025-06-25 16:32:00'),
+(9, 17152, 'PLUG 3 PIN EXTESION 5SOCKET HIGH QUALITY', 100, 'RAFIZ', '2025-06-30 09:28:43');
 
 -- --------------------------------------------------------
 
@@ -302,7 +311,7 @@ CREATE TABLE `user_profiles` (
 --
 
 INSERT INTO `user_profiles` (`Id`, `date_join`, `full_name`, `email`, `phone_no`, `username`, `password`, `position`, `profile_picture`, `active`, `created_at`) VALUES
-('AB0001', '2025-05-22', 'RAFIZ', 'rafiz@gmail.com', '0179761702', 'rafiz', '$2y$10$fa138javsOCo.RknSLcfJ.BBdYvuCdwl7bh6y8hnTWtZ3VtcBIA2e', 'admin', '685c0b5857d69_1750862680.png', 1, '2025-05-22 12:30:15'),
+('AB0001', '2025-05-22', 'RAFIZ', 'rafizrafiz05@gmail.com', '0179761702', 'rafiz', '$2y$10$3AEj3nMVZZQe1Zk3hf2ttu1IbSMnUDSIeDKPQULtsaKjFXujpsusS', 'admin', '685c0b5857d69_1750862680.png', 1, '2025-05-22 12:30:15'),
 ('AB0002', '2025-05-22', 'Zubair', 'admin@gmail.com', '0172343123', 'zubair', '$2y$10$U/wRSsl8uXyviGwYXPnAluiZU6VUmUXvmi.nJRfb877NIuNQ9Wgjy', 'user', 'default.jpg', 1, '2025-05-22 12:43:28'),
 ('AB0003', '2025-05-22', 'Test User', 'test8523@example.com', '1234567890', 'testuser602', 'password123', 'user', 'default.jpg', 1, '2025-05-22 12:44:39'),
 ('AB0007', '2025-05-26', 'aaasdad', 'aaaq@yahoo.com', '1234567890', 'asda', '123456', 'moderator', 'default.jpg', 1, '2025-05-26 08:55:43'),
@@ -424,13 +433,13 @@ ALTER TABLE `purchase_order_items`
 -- AUTO_INCREMENT for table `stock_in_history`
 --
 ALTER TABLE `stock_in_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `stock_out_history`
 --
 ALTER TABLE `stock_out_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- Constraints for dumped tables
