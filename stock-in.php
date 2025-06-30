@@ -174,8 +174,9 @@ if ($result_all_items && $result_all_items->num_rows > 0) {
 
 // Fetch Stock In History (from stock_in_history table)
 $stock_in_history = [];
-$sql_history = "SELECT sih.id, sih.product_id, sih.product_name, sih.quantity_added, sih.username, sih.transaction_date
-                FROM stock_in_history sih
+$sql_history = "SELECT sih.id, sih.product_id, sih.product_name, sih.quantity_added, sih.username, sih.transaction_date, ii.price
+                FROM stock_in_history AS sih
+                LEFT JOIN inventory_item AS ii ON sih.product_id = ii.itemID
                 ORDER BY sih.transaction_date DESC LIMIT 50";
 $result_history = $conn->query($sql_history);
 if ($result_history && $result_history->num_rows > 0) {
@@ -326,10 +327,10 @@ $conn->close();
     .action-card {
         background: white;
         border-radius: 0.5rem;
-        padding: 2rem;
+        padding: 1rem;
         box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
         margin-bottom: 1.5rem;
-        text-align: center;
+        text-align: left;
     }
 
     .action-card h5 {
@@ -345,23 +346,25 @@ $conn->close();
     .action-buttons {
         display: flex;
         gap: 1rem;
-        justify-content: center;
+        justify-content: flex-start;
         margin-bottom: 1rem;
         flex-wrap: wrap;
     }
 
     .action-btn {
-        padding: 0.75rem 1.5rem;
+        padding: 0.75rem 0.75rem;
         border-radius: 0.375rem;
         font-size: 0.875rem;
         font-weight: 500;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 0.5rem;
         transition: all 0.2s ease;
         border: none;
         cursor: pointer;
         text-decoration: none;
+        min-width: 100px;
     }
 
     .action-btn:hover {
@@ -627,7 +630,7 @@ $conn->close();
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="80" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -822,7 +825,7 @@ $conn->close();
                                     <i class="bx bx-plus"></i>Add Stock
                                 </button>
                                 <a href="stock-management.php" class="action-btn btn-secondary">
-                                    <i class="bx bx-arrow-back"></i>Back to Stock Management
+                                    <i class="bx bx-arrow-back"></i>Back
                                 </a>
                                 <a href="stock-out.php" class="action-btn btn-success">
                                     <i class="bx bx-minus"></i>Stock Out
@@ -846,6 +849,7 @@ $conn->close();
                                                 <th>Item ID</th>
                                                 <th>Item Name</th>
                                                 <th>Quantity Added</th>
+                                                <th>Total Price (RM)</th>
                                                 <th>User</th>
                                                 <th>Date & Time</th>
                                             </tr>
@@ -862,13 +866,19 @@ $conn->close();
                                                                 +<?php echo htmlspecialchars($history_item['quantity_added']); ?>
                                                             </span>
                                                         </td>
+                                                        <td>
+                                                            <?php
+                                                                $total_price = ($history_item['price'] ?? 0) * ($history_item['quantity_added'] ?? 0);
+                                                                echo 'RM ' . number_format($total_price, 2);
+                                                            ?>
+                                                        </td>
                                                         <td><?php echo htmlspecialchars($history_item['username']); ?></td>
                                                         <td><?php echo date('M d, Y H:i', strtotime($history_item['transaction_date'])); ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             <?php else: ?>
                                                 <tr>
-                                                    <td colspan="6" class="empty-state">
+                                                    <td colspan="7" class="empty-state">
                                                         <i class="bx bx-package"></i>
                                                         <h6>No Stock In History Found</h6>
                                                         <p>Start by adding your first stock transaction.</p>
