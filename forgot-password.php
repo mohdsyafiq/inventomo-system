@@ -1,3 +1,7 @@
+<?php
+// Start the session to access session variables
+session_start();
+?>
 <!DOCTYPE html>
 
 
@@ -64,10 +68,10 @@
             <div class="card-body">
               <!-- Logo -->
               <div class="app-brand justify-content-center">
-                <!-- <a href="index.html" class="app-brand-link gap-2"> -->
+                <a href="index.php" class="app-brand-link gap-2">
                 <span class="app-brand-logo demo">
                     <img
-                      width="200"
+                      width="80"
                       viewBox="0 0 25 42"
                       version="1.1"
                       src="assets/img/icons/brands/inventomo.png"
@@ -125,19 +129,34 @@
               <!-- /Logo -->
               <h4 class="mb-2">Forgot Password? 🔒</h4>
               <p class="mb-4">Enter your email and we'll send you instructions to reset your password</p>
-              <form id="formAuthentication" class="mb-3" action="index.html" method="POST">
+
+                <?php
+                // Display reset messages
+                if (isset($_SESSION['reset_message'])) {
+                    $message = $_SESSION['reset_message'];
+                    $message_type = $_SESSION['reset_message_type'] ?? 'info';
+                    echo "<div class='alert alert-{$message_type}'>{$message}</div>";
+                    
+                    // Unset the session variables so they don't show again on refresh
+                    unset($_SESSION['reset_message']);
+                    unset($_SESSION['reset_message_type']);
+                }
+                ?>
+
+              <form id="formAuthentication" class="mb-3" action="send-reset-password.php" method="POST">
                 <div class="mb-3">
                   <label for="email" class="form-label">Email</label>
                   <input
-                    type="text"
+                    type="email"
                     class="form-control"
                     id="email"
                     name="email"
                     placeholder="Enter your email"
                     autofocus
+                    required
                   />
                 </div>
-                <button class="btn btn-primary d-grid w-100">Send Reset Link</button>
+                <button type="submit" class="btn btn-primary d-grid w-100">Send Reset Password</button>
               </form>
               <div class="text-center">
                 <a href="login.php" class="d-flex align-items-center justify-content-center">
