@@ -320,7 +320,7 @@ if ($conn) {
     }
 
     .btn-refresh {
-        background-color: #696cff;
+        background-color: #3B82F6;
         color: white;
         border: none;
         padding: 0.5rem 1rem;
@@ -335,10 +335,10 @@ if ($conn) {
     }
 
     .btn-refresh:hover {
-        background-color: #5f63f2;
+        background-color: #2563EB;
         color: white;
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(105, 108, 255, 0.2);
+        box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
     }
 
     .filters-section {
@@ -375,8 +375,8 @@ if ($conn) {
 
     .filter-input:focus {
         outline: none;
-        border-color: #696cff;
-        box-shadow: 0 0 0 0.2rem rgba(105, 108, 255, 0.25);
+        border-color: #3B82F6;
+        box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
     }
 
     .date-separator {
@@ -415,14 +415,14 @@ if ($conn) {
     }
 
     .btn-primary {
-        background-color: #696cff;
+        background-color: #3B82F6;
         color: white;
     }
 
     .btn-primary:hover {
-        background-color: #5f63f2;
+        background-color: #2563EB;
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(105, 108, 255, 0.2);
+        box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
     }
 
     .btn-secondary {
@@ -479,8 +479,8 @@ if ($conn) {
 
     .export-select:focus {
         outline: none;
-        border-color: #696cff;
-        box-shadow: 0 0 0 0.2rem rgba(105, 108, 255, 0.25);
+        border-color: #3B82F6;
+        box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
     }
 
     .table-section {
@@ -555,7 +555,7 @@ if ($conn) {
 
     .summary-section {
         padding: 2rem 1.5rem;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
         border-bottom: 1px solid #d9dee3;
     }
 
@@ -586,7 +586,7 @@ if ($conn) {
         left: 0;
         right: 0;
         height: 4px;
-        background: linear-gradient(90deg, #696cff, #5f63f2);
+        background: linear-gradient(90deg, #3B82F6, #2563EB);
         opacity: 0;
         transition: opacity 0.3s ease;
     }
@@ -594,7 +594,7 @@ if ($conn) {
     .summary-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 0.75rem 1.5rem rgba(161, 172, 184, 0.25);
-        border-color: #696cff;
+        border-color: #3B82F6;
     }
 
     .summary-card:hover::before {
@@ -614,14 +614,14 @@ if ($conn) {
         width: 60px;
         height: 60px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #696cff 0%, #5f63f2 100%);
+        background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
         font-size: 1.5rem;
         flex-shrink: 0;
-        box-shadow: 0 0.25rem 0.5rem rgba(105, 108, 255, 0.3);
+        box-shadow: 0 0.25rem 0.5rem rgba(59, 130, 246, 0.3);
     }
 
     .summary-card.revenue .summary-icon {
@@ -714,8 +714,8 @@ if ($conn) {
 
     .page-btn:hover,
     .page-btn.active {
-        background-color: #696cff;
-        border-color: #696cff;
+        background-color: #3B82F6;
+        border-color: #3B82F6;
         color: white;
     }
 
@@ -742,7 +742,7 @@ if ($conn) {
         display: flex;
         align-items: center;
         gap: 0.75rem;
-        color: #696cff;
+        color: #3B82F6;
         font-weight: 500;
         background: white;
         padding: 1rem 2rem;
@@ -871,7 +871,7 @@ if ($conn) {
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="80" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -1202,9 +1202,6 @@ if ($conn) {
                                                         <h5>Ready to Search</h5>
                                                         <p>Use the filters above to search for transaction data</p>
                                                         <div style="margin-top: 1rem;">
-                                                            <button type="submit" class="btn btn-primary" name="search_report" style="margin-right: 0.5rem;">
-                                                                <i class="bx bx-search"></i>Search All Data
-                                                            </button>
                                                             <span style="color: #6c757d; font-size: 0.875rem;">or apply specific filters</span>
                                                         </div>
                                                     </div>
