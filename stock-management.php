@@ -582,7 +582,7 @@ foreach ($products as $product) {
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="80" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -798,79 +798,77 @@ foreach ($products as $product) {
                             </div>
                             <div class="card-body">
                                 <div class="table-responsive">
-                                    <table class="table table-hover">
+                                    <table class="table table-hover" id="productTable">
                                         <thead>
                                             <tr>
-                                                <th>Item ID</th>
-                                                <th>Product Name</th>
-                                                <th>Product Type</th>
-                                                <th>Price</th>
-                                                <th>Stock Quantity</th>
+                                                <th>#</th>
+                                                <th>Item Name</th>
+                                                <th>Category</th>
+                                                <th>Stock</th>
+                                                <th>Total Price (RM)</th>
                                                 <th>Last Updated</th>
                                                 <th>Actions</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody class="table-border-bottom-0">
                                             <?php if (!empty($products)): ?>
-                                                <?php foreach ($products as $product): ?>
-                                                    <tr>
-                                                        <td>
-                                                            <strong><?php echo htmlspecialchars($product['itemID']); ?></strong>
-                                                        </td>
-                                                        <td><?php echo htmlspecialchars($product['product_name']); ?></td>
-                                                        <td><?php echo htmlspecialchars($product['type_product'] ?? 'N/A'); ?></td>
-                                                        <td>
-                                                            <strong>$<?php echo number_format($product['price'] ?? 0, 2); ?></strong>
-                                                        </td>
-                                                        <td>
-                                                            <?php
-                                                            $quantity = $product['stock'] ?? 0;
-                                                            $badge_class = 'bg-success';
-                                                            $badge_icon = 'bx-check-circle';
-
-                                                            if ($quantity <= 0) {
-                                                                $badge_class = 'bg-danger';
-                                                                $badge_icon = 'bx-x-circle';
-                                                            } elseif ($quantity <= 10) {
-                                                                $badge_class = 'bg-warning';
-                                                                $badge_icon = 'bx-error';
+                                                <?php foreach ($products as $index => $product): ?>
+                                                <tr>
+                                                    <td><?php echo $index + 1; ?></td>
+                                                    <td>
+                                                        <a href="add-new-product.php?edit=<?php echo htmlspecialchars($product['itemID']); ?>">
+                                                            <strong><?php echo htmlspecialchars($product['product_name']); ?></strong>
+                                                        </a>
+                                                        <br><small class="text-muted">ID: <?php echo htmlspecialchars($product['itemID']); ?></small>
+                                                    </td>
+                                                    <td><?php echo htmlspecialchars($product['type_product']); ?></td>
+                                                    <td>
+                                                        <?php
+                                                            $stock_level = $product['stock'];
+                                                            $badge_class = 'bg-label-success';
+                                                            if ($stock_level <= 0) {
+                                                                $badge_class = 'bg-label-danger';
+                                                            } elseif ($stock_level <= 50) {
+                                                                $badge_class = 'bg-label-warning';
                                                             }
-                                                            ?>
-                                                            <span class="badge <?php echo $badge_class; ?>">
-                                                                <i class="bx <?php echo $badge_icon; ?>"></i>
-                                                                <?php echo htmlspecialchars($quantity); ?>
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <?php
-                                                            $date = $product['last_updated'] ?? 'N/A';
-                                                            if ($date !== 'N/A') {
-                                                                echo date('M d, Y H:i', strtotime($date));
+                                                        ?>
+                                                        <span class="badge <?php echo $badge_class; ?>"><?php echo $stock_level; ?></span>
+                                                    </td>
+                                                    <td>
+                                                        <?php
+                                                            $total_price = ($product['price'] ?? 0) * ($product['stock'] ?? 0);
+                                                            echo number_format($total_price, 2);
+                                                        ?>
+                                                    </td>
+                                                    <td>
+                                                        <?php
+                                                            if (!empty($product['last_updated'])) {
+                                                                echo date('d M Y, H:i', strtotime($product['last_updated']));
                                                             } else {
-                                                                echo $date;
+                                                                echo "N/A";
                                                             }
-                                                            ?>
-                                                        </td>
-                                                        <td>
-                                                            <div class="btn-group" role="group">
-                                                                <a href="stock-in.php?id=<?php echo htmlspecialchars($product['itemID']); ?>"
-                                                                    class="btn btn-sm btn-success" title="Stock In">
-                                                                    <i class="bx bx-plus"></i>
-                                                                </a>
-                                                                <a href="stock-out.php?id=<?php echo htmlspecialchars($product['itemID']); ?>"
-                                                                    class="btn btn-sm btn-warning" title="Stock Out">
-                                                                    <i class="bx bx-minus"></i>
-                                                                </a>
-                                                                <button type="button" class="btn btn-sm btn-info"
-                                                                            data-bs-toggle="modal"
-                                                                            data-bs-target="#productModal"
-                                                                            data-product='<?php echo json_encode($product); ?>'
-                                                                            title="View Details">
-                                                                    <i class="bx bx-show"></i>
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
+                                                        ?>
+                                                    </td>
+                                                    <td>
+                                                        <div class="btn-group" role="group">
+                                                            <a href="stock-in.php?id=<?php echo htmlspecialchars($product['itemID']); ?>"
+                                                                class="btn btn-sm btn-success" title="Stock In">
+                                                                <i class="bx bx-plus"></i>
+                                                            </a>
+                                                            <a href="stock-out.php?id=<?php echo htmlspecialchars($product['itemID']); ?>"
+                                                                class="btn btn-sm btn-warning" title="Stock Out">
+                                                                <i class="bx bx-minus"></i>
+                                                            </a>
+                                                            <button type="button" class="btn btn-sm btn-info"
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#productModal"
+                                                                        data-product='<?php echo json_encode($product); ?>'
+                                                                        title="View Details">
+                                                                <i class="bx bx-show"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
                                                 <?php endforeach; ?>
                                             <?php else: ?>
                                                 <tr>
