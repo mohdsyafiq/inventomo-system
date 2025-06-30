@@ -18,7 +18,7 @@ if (!$conn) { // check connection
 $itemID = "";
 $product_name = "";
 $type_product = "";
-$stock = "";
+$stock = 0;
 $price = "";
 $image = "";
 $success_message = "";
@@ -30,56 +30,6 @@ function sanitize_input($data) {
     $data = stripslashes($data);
     $data = htmlspecialchars($data);
     return $data;
-}
-
-/**
- * Generate category-based ID
- * 
- * @param string $category The product category
- * @param mysqli $connection Database connection
- * @return string Generated ID (e.g., E01, A01, F01, K01, O01)
- */
-function generateCategoryID($category, $connection) {
-    // Define category prefixes
-    $prefixes = [
-        'Electronic' => 'E',
-        'Accessories' => 'A',
-        'Furniture' => 'F',
-        'Kitchen' => 'K',
-        'Office' => 'O'
-    ];
-    
-    // Get the prefix for the category
-    $prefix = isset($prefixes[$category]) ? $prefixes[$category] : 'X';
-    
-    // Query to find the highest existing number for this category
-    $query = "SELECT itemID FROM inventory_item WHERE itemID LIKE ? ORDER BY itemID DESC LIMIT 1";
-    $stmt = mysqli_prepare($connection, $query);
-    
-    if ($stmt) {
-        $like_pattern = $prefix . '%';
-        mysqli_stmt_bind_param($stmt, 's', $like_pattern);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_bind_result($stmt, $last_id);
-        
-        $next_number = 1; // Default starting number
-        
-        if (mysqli_stmt_fetch($stmt)) {
-            // Extract the number part from the last ID
-            $number_part = substr($last_id, 1); // Remove the prefix
-            if (is_numeric($number_part)) {
-                $next_number = intval($number_part) + 1;
-            }
-        }
-        
-        mysqli_stmt_close($stmt);
-        
-        // Format the number with leading zeros (e.g., 01, 02, 03)
-        return $prefix . str_pad($next_number, 2, '0', STR_PAD_LEFT);
-    }
-    
-    // Fallback if query fails
-    return $prefix . '01';
 }
 
 /**
@@ -101,31 +51,23 @@ function handleFileUpload($file) {
         return $result;
     }
     
-    // Create uploads directory structure if it doesn't exist
-    $target_dir = "./uploads/images/";
-    $absolute_path = realpath('./') . '/uploads/images/';
+    // Create uploads directory if it doesn't exist
+    $target_dir = "./assets/uploads/";
+    $absolute_path = realpath('./') . '/assets/uploads/';
     
-    // Create uploads directory first
-    if (!file_exists("./uploads/")) {
-        if (!mkdir("./uploads/", 0777, true)) {
-            $result['error'] = "Failed to create uploads directory. Please create it manually and set permissions to 755 or 777.";
-            return $result;
-        }
-        chmod("./uploads/", 0777);
-    }
-    
-    // Create images subdirectory
     if (!file_exists($target_dir)) {
+        // Try to create directory with full permissions first
         if (!mkdir($target_dir, 0777, true)) {
-            $result['error'] = "Failed to create images directory at: " . $absolute_path . ". Please create this directory manually and set permissions to 755 or 777.";
+            $result['error'] = "Failed to create uploads directory at: " . $absolute_path . ". Please create this directory manually and set permissions to 755 or 777.";
             return $result;
         }
-        chmod($target_dir, 0777);
+        // Set permissions after creation
+        chmod($target_dir, 0755);
     }
     
     // Check if uploads directory is writable
     if (!is_writable($target_dir)) {
-        $result['error'] = "Images directory is not writable. Check permissions on: " . $absolute_path;
+        $result['error'] = "Uploads directory is not writable. Check permissions.";
         return $result;
     }
     
@@ -153,7 +95,7 @@ function handleFileUpload($file) {
         $result['success'] = true;
         $result['filename'] = $uniqueFilename;
     } else {
-        $result['error'] = "Failed to upload file. Check permissions on: " . $absolute_path;
+        $result['error'] = "Failed to upload file. Check permissions.";
     }
     
     return $result;
@@ -194,13 +136,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // ADD NEW PRODUCT
         if ($action === 'add') {
+            // Make itemID numeric since the database expects an integer
+            $itemID = mt_rand(10000, 99999); // Generate a random 5-digit number
             $product_name = sanitize_input($_POST['product_name']);
             $type_product = sanitize_input($_POST['type_product']);
             $stock = (int)sanitize_input($_POST['stock']);
             $price = sanitize_input($_POST['price']); // Keep as string to match database schema
-            
-            // Generate category-based ID
-            $itemID = generateCategoryID($type_product, $conn);
             
             // Handle image upload - store the filename only, not the full path
             $image = '';
@@ -220,15 +161,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt = mysqli_prepare($conn, $query);
             
             if ($stmt) {
-                // Note: itemID is now a string (e.g., "E01"), so use 's' instead of 'i'
-                mysqli_stmt_bind_param($stmt, 'ssssss', $itemID, $product_name, $type_product, $stock, $price, $image);
+                // Fixed binding - price is varchar in database, so use 's' not 'd'
+                mysqli_stmt_bind_param($stmt, 'ississ', $itemID, $product_name, $type_product, $stock, $price, $image);
                 
                 if (mysqli_stmt_execute($stmt)) {
                     $success_message = "Product added successfully with ID: " . $itemID;
                     // Reset form after successful addition
                     $product_name = "";
                     $type_product = "";
-                    $stock = "";
+                    $stock = 0;
                     $price = "";
                     $image = "";
                 } else {
@@ -242,7 +183,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // UPDATE EXISTING PRODUCT
         else if ($action === 'update') {
-            $itemID = sanitize_input($_POST['itemID']); // Keep as string since it's now category-based
+            $itemID = (int)sanitize_input($_POST['itemID']);
             $product_name = sanitize_input($_POST['product_name']);
             $type_product = sanitize_input($_POST['type_product']);
             $stock = (int)sanitize_input($_POST['stock']);
@@ -259,7 +200,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt = mysqli_prepare($conn, $get_old_image_query);
                     
                     if ($stmt) {
-                        mysqli_stmt_bind_param($stmt, 's', $itemID); // 's' since itemID is now string
+                        mysqli_stmt_bind_param($stmt, 'i', $itemID);
                         mysqli_stmt_execute($stmt);
                         mysqli_stmt_bind_result($stmt, $old_image);
                         mysqli_stmt_fetch($stmt);
@@ -267,14 +208,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         
                         // Delete old image if it exists
                         if (!empty($old_image)) {
-                            $old_file = "./uploads/images/" . $old_image;
+                            $old_file = "./assets/uploads/" . $old_image;
                             if (file_exists($old_file)) {
                                 unlink($old_file);
                             }
                         }
                     }
                     
-                    // UPDATE with new image
+                    // UPDATE with new image - fixed parameter binding
                     $query = "UPDATE inventory_item SET 
                             product_name = ?, 
                             type_product = ?, 
@@ -285,8 +226,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt = mysqli_prepare($conn, $query);
                     
                     if ($stmt) {
-                        // Updated binding: itemID is now string, so 'ssssss'
-                        mysqli_stmt_bind_param($stmt, 'ssssss', $product_name, $type_product, $stock, $price, $image, $itemID);
+                        // Fixed binding - price is varchar, so 'ssissi' not 'ssidsi'
+                        mysqli_stmt_bind_param($stmt, 'ssissi', $product_name, $type_product, $stock, $price, $image, $itemID);
                         
                         if (mysqli_stmt_execute($stmt)) {
                             $success_message = "Product updated successfully.";
@@ -301,7 +242,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $error_message = $upload_result['error'];
                 }
             } else {
-                // UPDATE without changing the image
+                // UPDATE without changing the image - fixed parameter binding
                 $query = "UPDATE inventory_item SET 
                         product_name = ?, 
                         type_product = ?, 
@@ -311,8 +252,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $stmt = mysqli_prepare($conn, $query);
                 
                 if ($stmt) {
-                    // Updated binding: itemID is now string, so 'sssss'
-                    mysqli_stmt_bind_param($stmt, 'sssss', $product_name, $type_product, $stock, $price, $itemID);
+                    // Fixed binding - price is varchar, so 'ssisi' not 'ssidi'
+                    mysqli_stmt_bind_param($stmt, 'ssisi', $product_name, $type_product, $stock, $price, $itemID);
                     
                     if (mysqli_stmt_execute($stmt)) {
                         $success_message = "Product updated successfully.";
@@ -328,14 +269,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // DELETE PRODUCT
         else if ($action === 'delete') {
-            $itemID = sanitize_input($_POST['itemID']); // Keep as string since it's now category-based
+            $itemID = (int)sanitize_input($_POST['itemID']);
             
             // Retrieve the image filename before deleting
             $get_image_query = "SELECT image FROM inventory_item WHERE itemID = ?";
             $stmt = mysqli_prepare($conn, $get_image_query);
             
             if ($stmt) {
-                mysqli_stmt_bind_param($stmt, 's', $itemID); // 's' since itemID is now string
+                mysqli_stmt_bind_param($stmt, 'i', $itemID);
                 mysqli_stmt_execute($stmt);
                 mysqli_stmt_bind_result($stmt, $image_to_delete);
                 mysqli_stmt_fetch($stmt);
@@ -346,12 +287,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $stmt = mysqli_prepare($conn, $delete_query);
                 
                 if ($stmt) {
-                    mysqli_stmt_bind_param($stmt, 's', $itemID); // 's' since itemID is now string
+                    mysqli_stmt_bind_param($stmt, 'i', $itemID);
                     
                     if (mysqli_stmt_execute($stmt)) {
                         // If deletion was successful and there's an image, delete the image file too
                         if (!empty($image_to_delete)) {
-                            $file_to_delete = "./uploads/images/" . $image_to_delete;
+                            $file_to_delete = "./assets/uploads/" . $image_to_delete;
                             if (file_exists($file_to_delete)) {
                                 unlink($file_to_delete);
                             }
@@ -371,14 +312,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 // LOAD PRODUCT FOR EDITING
 if (isset($_GET['edit']) && !empty($_GET['edit'])) {
-    $edit_id = sanitize_input($_GET['edit']); // Keep as string since it's now category-based
+    $edit_id = (int)$_GET['edit'];
     
     // Fetch product details
     $edit_query = "SELECT itemID, product_name, type_product, stock, price, image FROM inventory_item WHERE itemID = ?";
     $stmt = mysqli_prepare($conn, $edit_query);
     
     if ($stmt) {
-        mysqli_stmt_bind_param($stmt, 's', $edit_id); // 's' since itemID is now string
+        mysqli_stmt_bind_param($stmt, 'i', $edit_id);
         mysqli_stmt_execute($stmt);
         $result = mysqli_stmt_get_result($stmt);
         
@@ -421,20 +362,20 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
     
     <style>
         :root {
-            --primary-color: #6366f1;
-            --primary-color-dark: #4f46e5;
-            --secondary-color: #6b7280;
-            --secondary-color-dark: #4b5563;
-            --success-color: #10b981;
-            --danger-color: #ef4444;
-            --warning-color: #f59e0b;
-            --info-color: #3b82f6;
-            --light-color: #f9fafb;
-            --dark-color: #111827;
-            --background-color: #f3f4f6;
+            --primary-color: #3B82F6; /* A more vibrant blue */
+            --primary-color-dark: #2563EB;
+            --secondary-color: #64748B;
+            --secondary-color-dark: #475569;
+            --success-color: #22C55E;
+            --danger-color: #EF4444;
+            --warning-color: #F59E0B;
+            --info-color: #0EA5E9;
+            --light-color: #F8FAFC;
+            --dark-color: #0F172A;
+            --background-color: #F1F5F9;
             --card-color: #ffffff;
-            --border-color: #e5e7eb;
-            --shadow-color: rgba(0, 0, 0, 0.1);
+            --border-color: #E2E8F0;
+            --shadow-color: rgba(15, 23, 42, 0.1);
             --font-family: 'Public Sans', sans-serif;
         }
         
@@ -447,6 +388,7 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
         body {
             font-family: var(--font-family);
             background-color: var(--background-color);
+            background-image: linear-gradient(to top, #a1c4fd 0%, #c2e9fb 100%); /* A colorful gradient */
             margin: 0;
             padding: 0;
             min-height: 100vh;
@@ -769,17 +711,6 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
             margin-right: 8px;
         }
         
-        .id-preview {
-            background-color: var(--light-color);
-            border: 1px solid var(--border-color);
-            padding: 10px 15px;
-            border-radius: 6px;
-            font-weight: 600;
-            color: var(--primary-color);
-            margin-top: 5px;
-            display: none;
-        }
-        
         @media (max-width: 768px) {
             .form-row {
                 flex-direction: column;
@@ -802,34 +733,6 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
                 margin-top: 10px;
             }
         }
-
-        body {
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
-            url('assets/img/backgrounds/inside-background.jpeg');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        min-height: 100vh;
-    }
-
-    /* Ensure layout wrapper takes full space */
-    .layout-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    /* Content wrapper with transparent background to show body background */
-    .content-wrapper {
-        background: transparent;
-        min-height: 100vh;
-    }
-
-    .page-title {
-        color: white;
-        font-size: 2.0rem;
-        font-weight: bold;
-    }
     </style>
 </head>
 <body>
@@ -891,7 +794,7 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
 
                         <div class="form-group">
                             <label for="type_product" class="form-label">Category</label>
-                            <select id="type_product" name="type_product" class="form-control" required onchange="updateIdPreview()">
+                            <select id="type_product" name="type_product" class="form-control" required>
                                 <option value="" disabled <?php echo empty($type_product) ? 'selected' : ''; ?>>Select a category</option>
                                 <option value="Electronic" <?php echo ($type_product == 'Electronic') ? 'selected' : ''; ?>>Electronic</option>
                                 <option value="Accessories" <?php echo ($type_product == 'Accessories') ? 'selected' : ''; ?>>Accessories</option>
@@ -899,15 +802,6 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
                                 <option value="Kitchen" <?php echo ($type_product == 'Kitchen') ? 'selected' : ''; ?>>Kitchen</option>
                                 <option value="Office" <?php echo ($type_product == 'Office') ? 'selected' : ''; ?>>Office</option>
                             </select>
-                            <?php if (empty($itemID)): ?>
-                                <div id="idPreview" class="id-preview">
-                                    <i class="fas fa-tag"></i> Product ID will be generated automatically
-                                </div>
-                            <?php else: ?>
-                                <div class="id-preview" style="display: block;">
-                                    <i class="fas fa-tag"></i> Current ID: <?php echo $itemID; ?>
-                                </div>
-                            <?php endif; ?>
                         </div>
                     </div>
                     
@@ -929,7 +823,7 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
                         <label class="form-label">Product Image</label>
                         <div class="image-preview" id="imagePreviewContainer">
                             <?php if (!empty($image)): ?>
-                                <img src="./uploads/images/<?php echo $image; ?>" alt="Product image" id="imagePreview">
+                                <img src="./assets/uploads/<?php echo $image; ?>" alt="Product image" id="imagePreview">
                             <?php else: ?>
                                 <div id="placeholderText" style="color: #6b7280; text-align: center;">
                                     <i class="fas fa-image" style="font-size: 48px; margin-bottom: 10px; display: block;"></i>
@@ -946,7 +840,7 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
                             </label>
                         </div>
                         <small style="color: #6b7280; display: block; margin-top: 5px;">
-                            Supported formats: JPG, JPEG, PNG, GIF. Max size: 5MB. Images will be saved to /uploads/images/
+                            Supported formats: JPG, JPEG, PNG, GIF. Max size: 5MB.
                         </small>
                     </div>
                     
@@ -960,7 +854,7 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
                                     <i class="fas fa-save btn-icon"></i> Update Product
                                 </button>
                             <?php else: ?>
-                                <button type="reset" class="btn btn-outline" onclick="resetForm()">
+                                <button type="reset" class="btn btn-outline">
                                     <i class="fas fa-redo btn-icon"></i> Clear Form
                                 </button>
                                 <button type="submit" class="btn btn-primary">
@@ -975,34 +869,6 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
     </div>
 
     <script>
-        // Category ID prefixes mapping
-        const categoryPrefixes = {
-            'Electronic': 'E',
-            'Accessories': 'A',
-            'Furniture': 'F',
-            'Kitchen': 'K',
-            'Office': 'O'
-        };
-
-        // Update ID preview when category changes
-        function updateIdPreview() {
-            const categorySelect = document.getElementById('type_product');
-            const idPreview = document.getElementById('idPreview');
-            
-            if (categorySelect && idPreview) {
-                const selectedCategory = categorySelect.value;
-                
-                if (selectedCategory && categoryPrefixes[selectedCategory]) {
-                    const prefix = categoryPrefixes[selectedCategory];
-                    idPreview.innerHTML = `<i class="fas fa-tag"></i> Next Product ID will be: ${prefix}XX (auto-generated)`;
-                    idPreview.style.display = 'block';
-                } else {
-                    idPreview.innerHTML = `<i class="fas fa-tag"></i> Product ID will be generated automatically`;
-                    idPreview.style.display = 'block';
-                }
-            }
-        }
-
         // Preview image before upload
         function previewImage(input) {
             const preview = document.getElementById('imagePreview');
@@ -1022,32 +888,6 @@ $page_title = empty($itemID) ? "Add New Product" : "Update Product #" . $itemID;
                 reader.readAsDataURL(input.files[0]);
             }
         }
-
-        // Reset form function
-        function resetForm() {
-            document.getElementById('productForm').reset();
-            
-            // Reset image preview
-            const preview = document.getElementById('imagePreview');
-            const placeholder = document.getElementById('placeholderText');
-            
-            if (preview) {
-                preview.style.display = 'none';
-                preview.src = '';
-            }
-            
-            if (placeholder) {
-                placeholder.style.display = 'block';
-            }
-            
-            // Reset ID preview
-            updateIdPreview();
-        }
-
-        // Initialize ID preview on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            updateIdPreview();
-        });
     </script>
 </body>
 </html>
