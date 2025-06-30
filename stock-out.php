@@ -200,13 +200,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 // --- Fetch Statistics for Stock Out Dashboard ---
 $total_transactions = 0;
 $total_quantity_deducted = 0;
+$total_profit = 0;
 
-$sql_stats = "SELECT COUNT(*) as transaction_count, COALESCE(SUM(quantity_deducted), 0) as total_deducted FROM stock_out_history";
+$sql_stats = "SELECT
+                COUNT(soh.id) as transaction_count,
+                COALESCE(SUM(soh.quantity_deducted), 0) as total_deducted,
+                COALESCE(SUM(soh.quantity_deducted * ii.price), 0) as total_value_deducted
+              FROM stock_out_history AS soh
+              LEFT JOIN inventory_item AS ii ON soh.product_id = ii.itemID";
 $result_stats = $conn->query($sql_stats);
 if ($result_stats && $result_stats->num_rows > 0) {
     $stats = $result_stats->fetch_assoc();
     $total_transactions = $stats['transaction_count'];
     $total_quantity_deducted = $stats['total_deducted'];
+    $total_value_deducted = $stats['total_value_deducted'];
+    $total_profit = $total_value_deducted * 0.20; // Calculate 20% profit
 }
 
 // --- Fetch all available items for the dropdown in the modal ---
@@ -223,8 +231,9 @@ if ($result_all_items && $result_all_items->num_rows > 0) {
 
 // --- Fetch Recent Stock Out History for the table display ---
 $stock_out_history = [];
-$sql_history = "SELECT soh.id, soh.product_id, soh.product_name, soh.quantity_deducted, soh.username, soh.transaction_date
-                FROM stock_out_history soh
+$sql_history = "SELECT soh.id, soh.product_id, soh.product_name, soh.quantity_deducted, soh.username, soh.transaction_date, ii.price
+                FROM stock_out_history AS soh
+                LEFT JOIN inventory_item AS ii ON soh.product_id = ii.itemID
                 ORDER BY soh.transaction_date DESC LIMIT 50"; // Limit to recent 50 transactions
 $result_history = $conn->query($sql_history);
 if ($result_history && $result_history->num_rows > 0) {
@@ -297,9 +306,9 @@ $conn->close();
         }
         /* Card Styles */
         .stats-card {
-            border-left: 4px solid #ff6b35; /* Orange for stock out related stats */
+            border-left: 4px solidrgb(223, 92, 44); /* Orange for stock out related stats */
             transition: transform 0.2s ease, box-shadow 0.2s ease;
-            box-shadow: 0 0.125rem 0.25rem rgba(161, 172, 184, 0.15);
+            box-shadow: 0 0.125     rem 0.25rem rgba(161, 172, 184, 0.15);
         }
         .stats-card:hover {
             transform: translateY(-2px);
@@ -357,7 +366,7 @@ $conn->close();
                 <div class="app-brand demo">
                     <a href="index.php" class="app-brand-link">
                         <span class="app-brand-logo demo">
-                            <img width="180" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
+                            <img width="80" src="assets/img/icons/brands/inventomo.png" alt="Inventomo Logo">
                         </span>
                     </a>
 
@@ -493,7 +502,7 @@ $conn->close();
                         <?php echo $message; // Display messages ?>
 
                         <div class="row mb-4">
-                            <div class="col-md-6">
+                            <div class="col-lg-4 col-md-6 mb-4">
                                 <div class="card stats-card">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
@@ -510,7 +519,7 @@ $conn->close();
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-lg-4 col-md-6 mb-4">
                                 <div class="card stats-card">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center">
@@ -521,6 +530,23 @@ $conn->close();
                                             <div class="avatar">
                                                 <span class="avatar-initial rounded bg-label-warning">
                                                     <i class="bx bx-package fs-4"></i>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6 mb-4">
+                                <div class="card stats-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="card-title mb-1">Total Profit (20%)</h5>
+                                                <h3 class="text-success mb-0">RM <?php echo number_format($total_profit, 2); ?></h3>
+                                            </div>
+                                            <div class="avatar">
+                                                <span class="avatar-initial rounded bg-label-success">
+                                                    <i class='bx bx-dollar-circle fs-4'></i>
                                                 </span>
                                             </div>
                                         </div>
@@ -539,84 +565,80 @@ $conn->close();
                                     <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#stockOutModal">
                                         <i class="bx bx-minus-circle me-1"></i> Deduct Stock
                                     </button>
-                                    <!-- Added "Back to Stock Management" button here -->
-                                    <a href="stock-management.php" class="btn btn-outline-primary">
-                                        <i class="bx bx-arrow-back me-1"></i> Back to Stock Management
+                                    <!-- Changed this button to secondary (grey) -->
+                                    <a href="stock-management.php" class="btn btn-secondary">
+                                        <i class="bx bx-arrow-back me-1"></i> Back
                                     </a>
-                                    <button type="button" class="btn btn-outline-info" onclick="window.print()">
-                                        <i class="bx bx-printer me-1"></i> Print History
-                                    </button>
+                                    <!-- Replaced Print button with a new Stock In button -->
+                                    <a href="stock-in.php" class="btn btn-success">
+                                        <i class="bx bx-plus-circle me-1"></i> Stock In
+                                    </a>
                                 </div>
                                 <div class="alert alert-info d-flex align-items-center" role="alert">
-                                    <i class="bx bx-info-circle me-2"></i>
-                                    <div>
-                                        <strong>Quick Actions:</strong> Press <kbd>Ctrl + B</kbd> to go back to stock management.
-                                    </div>
+                                    <p class="text-muted mt-3">
+                                      Click "Deduct Stock" to initiate a new stock-out transaction, view stock management, or process stock in operations.
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
                         <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0">Recent Stock Out History</h5>
-                                <small class="text-muted">Latest 50 transactions</small>
+                            <div class="card-header">
+                                <i class="bx bx-history"></i>Stock Out History
                             </div>
-                            <div class="table-responsive text-nowrap">
-                                <table class="table table-bordered" id="historyTable">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Product</th>
-                                            <th>Quantity</th>
-                                            <th>User</th>
-                                            <th>Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="table-border-bottom-0">
-                                        <?php if (!empty($stock_out_history)): ?>
-                                            <?php foreach ($stock_out_history as $history_item): ?>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="historyTable">
+                                        <thead>
                                             <tr>
-                                                <td><span class="badge bg-label-secondary">#<?php echo htmlspecialchars($history_item['id']); ?></span></td>
-                                                <td>
-                                                    <div>
-                                                        <strong><?php echo htmlspecialchars($history_item['product_name']); ?></strong>
-                                                        <br><small class="text-muted">ID: <?php echo htmlspecialchars($history_item['product_id']); ?></small>
+                                                <th>Transaction ID</th>
+                                                <th>Item ID</th>
+                                                <th>Item Name</th>
+                                                <th>Quantity Deducted</th>
+                                                <th>Total Profit (RM)</th>
+                                                <th>User</th>
+                                                <th>Date & Time</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php if (!empty($stock_out_history)): ?>
+                                                <?php foreach ($stock_out_history as $history_item): ?>
+                                                <tr>
+                                                    <td><strong><?php echo htmlspecialchars($history_item['id']); ?></strong></td>
+                                                    <td><?php echo htmlspecialchars($history_item['product_id']); ?></td>
+                                                    <td><?php echo htmlspecialchars($history_item['product_name']); ?></td>
+                                                    <td>
+                                                        <span class="badge bg-danger">
+                                                            -<?php echo htmlspecialchars($history_item['quantity_deducted']); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <?php
+                                                            $profit = ($history_item['price'] ?? 0) * ($history_item['quantity_deducted'] ?? 0) * 0.20;
+                                                            echo 'RM ' . number_format($profit, 2);
+                                                        ?>
+                                                    </td>
+                                                    <td><?php echo htmlspecialchars($history_item['username']); ?></td>
+                                                    <td><?php echo date('M d, Y H:i', strtotime($history_item['transaction_date'])); ?></td>
+                                                </tr>
+                                                <?php endforeach; ?>
+                                            <?php else: ?>
+                                            <tr>
+                                                <td colspan="7" class="text-center py-4">
+                                                    <div class="d-flex flex-column align-items-center">
+                                                        <i class="bx bx-package display-4 text-muted mb-2"></i>
+                                                        <h6 class="text-muted mb-1">No Stock Out History Found</h6>
+                                                        <p class="text-muted mb-2">Start by deducting stock from your inventory.</p>
+                                                        <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#stockOutModal">
+                                                            <i class="bx bx-minus-circle me-1"></i>Deduct First Stock
+                                                        </button>
                                                     </div>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-label-warning">
-                                                        -<?php echo htmlspecialchars($history_item['quantity_deducted']); ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="user-avatar bg-label-<?php echo getAvatarColor('user'); ?> me-2" style="width: 30px; height: 30px; font-size: 12px;">
-                                                            <?php echo strtoupper(substr($history_item['username'], 0, 1)); ?>
-                                                        </div>
-                                                        <?php echo htmlspecialchars($history_item['username']); ?>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <small>
-                                                        <?php echo date('M j, Y', strtotime($history_item['transaction_date'])); ?><br>
-                                                        <span class="text-muted"><?php echo date('g:i A', strtotime($history_item['transaction_date'])); ?></span>
-                                                    </small>
                                                 </td>
                                             </tr>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                        <tr>
-                                            <td colspan="5" class="text-center py-4">
-                                                <div class="d-flex flex-column align-items-center">
-                                                    <i class="bx bx-package display-4 text-muted mb-2"></i>
-                                                    <p class="text-muted mb-0">No stock out transactions found</p>
-                                                    <small class="text-muted">Start by deducting stock from your inventory</small>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
+                                            <?php endif; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
